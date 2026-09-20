@@ -10,3 +10,14 @@
 {"harness": "aider", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 16.5, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 844}
 {"harness": "aider", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 31.8, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 925}
 {"harness": "aider", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 23.7, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 877}
+{"harness": "mini", "model": "sw-ornith-9b-q4-k-m", "task": 1, "done": true, "wall_s": 17.9, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 1715}
+{"harness": "mini", "model": "sw-ornith-9b-q4-k-m", "task": 2, "done": true, "wall_s": 18.7, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 7, "peak_prompt_tokens": 2227}
+{"harness": "mini", "model": "sw-ornith-9b-q4-k-m", "task": 3, "done": true, "wall_s": 18.2, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 9, "peak_prompt_tokens": 2266}
+{"harness": "pi", "model": "sw-ornith-9b-q4-k-m", "task": 1, "done": true, "wall_s": 15.9, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 5, "peak_prompt_tokens": 4194}
+{"harness": "pi", "model": "sw-ornith-9b-q4-k-m", "task": 2, "done": true, "wall_s": 22.3, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 4899}
+{"harness": "pi", "model": "sw-ornith-9b-q4-k-m", "task": 3, "done": true, "wall_s": 11.2, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 5, "peak_prompt_tokens": 4362}
+{"harness": "mini", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 21.1, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 5, "peak_prompt_tokens": 1448}
+{"harness": "mini", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 52.2, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 12, "peak_prompt_tokens": 2352}
+{"harness": "mini", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 33.5, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 10, "peak_prompt_tokens": 2214}
+{"harness": "pi", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 27.0, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 4059}
+{"harness": "pi", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 29.9, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 10, "peak_prompt_tokens": 4323}
