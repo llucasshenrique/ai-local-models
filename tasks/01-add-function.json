@@ -1,0 +1,11 @@
+{
+  "id": "01-add-function",
+  "title": "Create a file so a test passes",
+  "prompt": "Create calc.py with a function add(a, b) returning a + b. Then run `sh test.sh` and make it pass.",
+  "files": {
+    "test.sh": "python3 -c \"from calc import add; assert add(2, 3) == 5\"\n"
+  },
+  "solution": {
+    "calc.py": "def add(a, b):\n    return a + b\n"
+  }
+}

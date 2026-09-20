@@ -1,0 +1,14 @@
+{
+  "id": "02-rename-symbol",
+  "title": "Rename a symbol across two files",
+  "prompt": "Rename the function `compute` to `total` in both a.py and b.py (definition and usage). Then run `sh test.sh` and make it pass.",
+  "files": {
+    "a.py": "def compute(x):\n    return x * 2\n",
+    "b.py": "from a import compute\n\ndef run():\n    return compute(21)\n",
+    "test.sh": "python3 -c \"import b; from a import total; assert b.run() == 42 and total(1) == 2\"\n"
+  },
+  "solution": {
+    "a.py": "def total(x):\n    return x * 2\n",
+    "b.py": "from a import total\n\ndef run():\n    return total(21)\n"
+  }
+}

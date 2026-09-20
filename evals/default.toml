@@ -1,0 +1,34 @@
+# llmeval config. Run: python3 -m llmeval prepare|selfcheck|run|fit|report|tui --config evals/default.toml
+
+[run]
+harnesses = ["pi", "minimal"]     # see `llmeval list`
+reps      = 3                     # repetitions per (model, harness, task)
+timeout   = 180                   # seconds per trial; the run is killed at this point
+tasks     = []                    # empty = all tasks in tasks/
+
+[defaults.params]                 # Modelfile PARAMETERs applied to every model that has a `base`
+temperature    = 0.25
+top_k          = 20
+top_p          = 0.9
+repeat_penalty = 1.05
+repeat_last_n  = 256
+num_predict    = 4096
+num_ctx        = 16384
+
+[[models]]                        # `base` present: `tag` is created from it with the params above
+tag  = "ornith-agent:9b"
+base = "ornith:9b-q4_K_M"
+[models.params]
+num_ctx = 32768
+
+[[models]]
+tag  = "gemma4-agent:12b"
+base = "gemma4:12b"
+[models.params]
+num_ctx        = 32768
+temperature    = 0.2
+top_k          = 30
+repeat_penalty = 1.1
+
+[[models]]                        # no `base`: an existing tag used as-is
+tag = "granite4.1:8b"

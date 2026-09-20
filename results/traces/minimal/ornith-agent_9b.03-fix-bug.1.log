@@ -1,0 +1,5 @@
+{"call": "[\"read_file\", {\"path\": \"test.sh\"}]"}
+{"call": "[\"read_file\", {\"path\": \"util.py\"}]"}
+{"call": "[\"write_file\", {\"content\": \"def is_even(n):\\n    return n % 2 == 0\\n\", \"path\": \"util.py\"}]"}
+{"call": "[\"run_shell\", {\"command\": \"sh test.sh\"}]"}
+{"final": "DONE"}

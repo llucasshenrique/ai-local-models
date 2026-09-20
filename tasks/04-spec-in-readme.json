@@ -1,0 +1,13 @@
+{
+  "id": "04-spec-in-readme",
+  "title": "Implement from a written spec",
+  "prompt": "Implement slugify in slug.py exactly as described in README.md. Then run `sh test.sh` and make it pass.",
+  "files": {
+    "README.md": "# slug\n\n`slugify(text)` returns a URL slug:\n- lowercase\n- letters and digits kept, every other run of characters becomes a single `-`\n- no leading or trailing `-`\n- empty input returns `n-a`\n",
+    "slug.py": "def slugify(text):\n    raise NotImplementedError\n",
+    "test.sh": "python3 -c \"\nfrom slug import slugify\nassert slugify('Hello, World!') == 'hello-world'\nassert slugify('  a--b  ') == 'a-b'\nassert slugify('C++ 101') == 'c-101'\nassert slugify('') == 'n-a'\nassert slugify('!!!') == 'n-a'\n\"\n"
+  },
+  "solution": {
+    "slug.py": "import re\n\ndef slugify(text):\n    s = re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')\n    return s or 'n-a'\n"
+  }
+}

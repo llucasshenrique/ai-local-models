@@ -1,0 +1,13 @@
+{
+  "id": "05-bug-across-files",
+  "title": "Find a bug that spans two files",
+  "prompt": "`sh test.sh` fails with a wrong total. Find the cause (it may not be in the file the traceback points at) and fix it without editing test.sh.",
+  "files": {
+    "pricing.py": "def apply_discount(price, pct):\n    return price - price * pct  # pct is a percentage like 10 for 10%\n",
+    "cart.py": "from pricing import apply_discount\n\ndef total(items, pct=0):\n    return round(sum(apply_discount(p, pct) for p in items), 2)\n",
+    "test.sh": "python3 -c \"\nfrom cart import total\nassert total([10.0, 20.0]) == 30.0\nassert total([10.0, 20.0], 10) == 27.0\nassert total([], 50) == 0\n\"\n"
+  },
+  "solution": {
+    "pricing.py": "def apply_discount(price, pct):\n    return price - price * pct / 100\n"
+  }
+}

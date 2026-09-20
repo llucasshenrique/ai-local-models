@@ -1,0 +1,12 @@
+{
+  "id": "03-fix-bug",
+  "title": "Fix a failing assertion",
+  "prompt": "`sh test.sh` currently fails. Fix the bug in util.py (not the test) so it passes.",
+  "files": {
+    "util.py": "def is_even(n):\n    return n % 2 == 1\n",
+    "test.sh": "python3 -c \"from util import is_even; assert is_even(4) and not is_even(7)\"\n"
+  },
+  "solution": {
+    "util.py": "def is_even(n):\n    return n % 2 == 0\n"
+  }
+}
