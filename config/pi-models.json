@@ -16,7 +16,7 @@
         },
         {
           "id": "ornith-agent:9b",
-          "contextWindow": 32768,
+          "contextWindow": 106496,
           "maxTokens": 4096,
           "input": [
             "text"

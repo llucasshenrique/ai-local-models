@@ -6,5 +6,5 @@ PARAMETER top_k 20
 PARAMETER top_p 0.9
 PARAMETER repeat_penalty 1.05
 PARAMETER repeat_last_n 256
-PARAMETER num_ctx 32768
+PARAMETER num_ctx 106496
 PARAMETER num_predict 4096

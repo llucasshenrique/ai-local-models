@@ -19,7 +19,7 @@ num_ctx        = 16384
 tag  = "ornith-agent:9b"
 base = "ornith:9b-q4_K_M"
 [models.params]
-num_ctx = 32768
+num_ctx = 106496
 
 [[models]]
 tag  = "gemma4-agent:12b"

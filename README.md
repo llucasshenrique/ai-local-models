@@ -10,6 +10,7 @@ bin/llmeval selfcheck     # prove every task is solvable and starts failing (no 
 bin/llmeval prepare       # pull base models, create tuned tags from evals/default.toml
 bin/llmeval run           # run the matrix; resumable, results append to results/runs.jsonl
 bin/llmeval fit           # GPU fit + tok/s per model at 16k..64k context
+bin/llmeval fit --optimize # empirically discover max safe context (RSI loop, no LLM required)
 bin/llmeval report        # markdown ranking (--out file.md)
 bin/llmeval tui           # terminal UI: results, live runs, context fit, setup, tune
 bin/llmeval tune MODEL    # bounded self-improvement search over Modelfile params (see below)
@@ -55,6 +56,22 @@ make fit && make families                                   # add VRAM/tok/s, th
 
 Recommendation rule (`llmeval/families.py`): among variants that fit fully on the GPU, take the best pass rate, then pick the
 **smallest** variant (parameters, then VRAM) within 5 points of it, ties by speed. The report and the TUI Results tab show it.
+
+## Context optimization: empirical search without LLM dependence
+
+Instead of guessing context limits from model metadata or requiring an LLM to orchestrate measurements, `llmeval fit --optimize` executes an autonomous empirical loop:
+
+```
+make fit-opt MODEL=ornith-agent:9b           # run adaptive search and output recommendations
+make fit-opt MODEL=ornith-agent:9b APPLY=1   # optimize and re-create the tag with the safe num_ctx
+```
+
+What it does autonomously:
+1. **Background Telemetry**: Samples GPU VRAM, GPU layer offloading, host RAM, swap deltas, and CPU load during inference.
+2. **Realistic Context Stress**: Fills 75%–85% of each tested context window to measure real prefill throughput and KV allocation, not a 20-token toy prompt.
+3. **Adaptive Search Progression**: Starts at baseline, doubles context coarsely, detects GPU/swap boundary violations, bisects the boundary via binary search, and runs high-stress validation.
+4. **Safety Margin**: Recommends a production context size with headroom for desktop GPU display buffers and multi-turn KV caches. Results append to `results/fit.jsonl`.
+
 
 ## Advisor: use the best model to think about improvements
 

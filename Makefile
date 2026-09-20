@@ -4,7 +4,7 @@ PY     ?= python3
 EVAL   := $(PY) -m llmeval -c $(CONFIG)
 DEMO   := /tmp/llmeval-demo
 
-.PHONY: help add-family backup families advise models add test tui tui-demo list selfcheck prepare run fit report tune clean-demo
+.PHONY: help add-family backup families advise models add test tui tui-demo list selfcheck prepare run fit fit-opt apply-ctx report tune clean-demo
 
 help:  ## show this help
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | column -t -s "$$(printf '\t')"
@@ -53,6 +53,13 @@ run:  ## run the model x harness x task matrix (resumable)
 
 fit:  ## GPU fit and tok/s at 16k..64k context per model
 	$(EVAL) fit
+
+fit-opt:  ## empirically optimize max practical context: make fit-opt [MODEL=tag] [APPLY=1]
+	$(EVAL) fit --optimize $(if $(MODEL),--model $(MODEL)) $(if $(APPLY),--apply)
+
+apply-ctx:  ## apply context size across Modelfile, Ollama, Pi agent, Opencode: make apply-ctx MODEL=tag CTX=n
+	@test -n "$(MODEL)" -a -n "$(CTX)" || { echo 'usage: make apply-ctx MODEL=tag CTX=n'; exit 2; }
+	$(EVAL) apply-ctx $(MODEL) $(CTX)
 
 report:  ## markdown ranking of all results
 	$(EVAL) report

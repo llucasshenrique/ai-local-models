@@ -53,8 +53,21 @@ def cmd_compare(a):
 
 def cmd_fit(a):
     cfg = config.load(a.config)
+    if getattr(a, "optimize", False):
+        tags = [a.model] if getattr(a, "model", None) else [m["tag"] for m in cfg["models"] if ollama.has(m["tag"])]
+        if not tags:
+            raise SystemExit("No installed models found to optimize. Specify --model <tag>.")
+        for tag in tags:
+            res = fitmod.optimize(tag, min_ctx=a.min_ctx, max_ctx=a.max_ctx, prompt_ratio=a.stress)
+            if getattr(a, "apply", False) and res.get("recommended_ctx"):
+                fitmod.apply_context(tag, res["recommended_ctx"], config_path=a.config)
+        return
+
     for r in fitmod.measure([m["tag"] for m in cfg["models"]], [int(x) for x in a.ctx.split(",")]):
         print(json.dumps({k: r.get(k) for k in ("model", "num_ctx", "tok_s", "fit", "error")}))
+
+def cmd_apply_ctx(a):
+    fitmod.apply_context(a.model, a.ctx, config_path=a.config)
 
 def cmd_report(a):
     md = report.render()
@@ -167,7 +180,15 @@ def main(argv=None):
     sub.add_parser("prepare", help="pull base models and create tuned tags").set_defaults(f=cmd_prepare)
     sub.choices["prepare"].add_argument("--family"); sub.choices["prepare"].add_argument("--dry-run", action="store_true")
     r = sub.add_parser("run"); r.add_argument("--variant", help="label stored with each trial so before/after runs of the same trials can be compared"); r.add_argument("--tasks", help="comma list of task ids (overrides the config)"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
-    f = sub.add_parser("fit"); f.add_argument("--ctx", default="16384,32768,49152,65536"); f.set_defaults(f=cmd_fit)
+    f = sub.add_parser("fit", help="GPU fit measurement or empirical context optimization")
+    f.add_argument("--ctx", default="16384,32768,49152,65536", help="comma-separated context sizes to probe")
+    f.add_argument("--optimize", action="store_true", help="run empirical optimization loop to find max practical context")
+    f.add_argument("--model", help="model tag to optimize")
+    f.add_argument("--min-ctx", type=int, default=16384, help="minimum context baseline (default: 16384)")
+    f.add_argument("--max-ctx", type=int, default=262144, help="maximum context ceiling (default: 262144)")
+    f.add_argument("--stress", type=float, default=0.75, help="context load ratio for stress testing (default: 0.75)")
+    f.add_argument("--apply", action="store_true", help="recreate model tag with recommended safe num_ctx")
+    f.set_defaults(f=cmd_fit)
     o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
     t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model", nargs="?"); t.add_argument("--family", help="tune a whole family: lead variant, then check the siblings"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
     sub.add_parser("import-legacy").set_defaults(f=cmd_import_legacy)
@@ -191,6 +212,8 @@ def main(argv=None):
     sub.add_parser("models", help="installed ollama models and whether they are in the config").set_defaults(f=cmd_models)
     d = sub.add_parser("add", help="add models to the config (installed tags as-is, or built from --base)")
     d.add_argument("tags", nargs="+"); d.add_argument("--base"); d.add_argument("--ctx", type=int); d.add_argument("--pull", action="store_true"); d.set_defaults(f=cmd_add)
+    ap = sub.add_parser("apply-ctx", help="apply a context size across Modelfiles, evals config, Pi agent, Opencode, and Ollama")
+    ap.add_argument("model"); ap.add_argument("ctx", type=int); ap.set_defaults(f=cmd_apply_ctx)
     sub.add_parser("demo-data", help="write synthetic results (use with LLMEVAL_RESULTS=/tmp/dir)").set_defaults(f=cmd_demo_data)
     sub.add_parser("tui").set_defaults(f=cmd_tui)
     a = p.parse_args(argv); a.f(a)

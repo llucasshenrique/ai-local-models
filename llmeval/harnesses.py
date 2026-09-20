@@ -25,6 +25,9 @@ class Opencode(Harness):
         if model not in ms:
             ms[model] = {"name": model, "tool_call": True, "limit": {"context": num_ctx, "output": 4096},
                          "options": {"temperature": 0.25, "top_p": 0.9, "presence_penalty": 0.3, "frequency_penalty": 0.1}}; changed = True
+        elif ms[model].get("limit", {}).get("context") != num_ctx:
+            ms[model].setdefault("limit", {})["context"] = num_ctx
+            changed = True
         if "micro" not in c.get("agent", {}):
             c.setdefault("agent", {})["micro"] = {"mode": "primary", "maxSteps": 15, "permission": {"doom_loop": "deny", "edit": "allow", "bash": "allow"}}; changed = True
         if changed:
@@ -80,10 +83,20 @@ class Pi(Harness):
     cfg = os.path.join(HOME, ".pi/agent/models.json")
     def prepare(self, model, num_ctx):
         c = json.load(open(self.cfg)) if os.path.exists(self.cfg) else {"providers": {}}
-        p = c["providers"].setdefault("ollama-proxy", {"api": "openai-completions", "apiKey": "ollama", "baseUrl": "http://127.0.0.1:11436/v1",
-            "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False}, "models": []})
-        if model not in {m["id"] for m in p["models"]}:
-            p["models"].append({"id": model, "contextWindow": num_ctx, "maxTokens": 4096, "input": ["text"]})
+        changed = False
+        for prov_name, base_url in [("ollama", "http://127.0.0.1:11434/v1"), ("ollama-proxy", "http://127.0.0.1:11436/v1")]:
+            p = c["providers"].setdefault(prov_name, {"api": "openai-completions", "apiKey": "ollama", "baseUrl": base_url,
+                "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False}, "models": []})
+            for m in p["models"]:
+                if m.get("id") == model:
+                    if m.get("contextWindow") != num_ctx:
+                        m["contextWindow"] = num_ctx
+                        changed = True
+                    break
+            else:
+                p["models"].append({"id": model, "contextWindow": num_ctx, "maxTokens": 4096, "input": ["text"]})
+                changed = True
+        if changed:
             os.makedirs(os.path.dirname(self.cfg), exist_ok=True); _backup_once(self.cfg); json.dump(c, open(self.cfg, "w"), indent=2)
     def build(self, c):
         return ["pi", "--provider", "ollama-proxy", "--model", c.model, "-p", c.prompt, "--no-session"], {}
