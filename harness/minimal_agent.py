@@ -12,7 +12,8 @@ import json, os, subprocess, sys, urllib.request
 URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 MAX_STEPS, MAX_REPEAT, OUT_CAP = 15, 3, 4000
 SYSTEM = ("You are a coding agent working in the current directory. Use the tools to finish the task. "
-          "Verify by running the test command. Be brief. When the test passes, reply with DONE.")
+          "Run the test command to verify. Be brief. When the test passes, reply with DONE. "
+          "Never skip verification. If your code changes anything, run tests and confirm before declaring done.")
 TOOLS = [{"type": "function", "function": {"name": n, "description": d, "parameters": {
     "type": "object", "properties": {k: {"type": "string"} for k in props}, "required": props}}} for n, d, props in [
     ("read_file", "Read a text file", ["path"]),

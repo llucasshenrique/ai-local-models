@@ -1,0 +1,20 @@
+[run]
+harnesses = ["minimal"]
+reps      = 3
+timeout   = 90
+tasks     = []
+
+[[models]]
+tag  = "ornith-agent:9b"
+base = "ornith:9b-q4_K_M"
+[models.params]
+num_ctx = 32768
+
+[defaults.params]
+temperature    = 0.25
+top_k          = 20
+top_p          = 0.9
+repeat_penalty = 1.05
+repeat_last_n  = 256
+num_predict    = 4096
+num_ctx        = 16384

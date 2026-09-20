@@ -44,3 +44,9 @@ tag = "granite4.1:8b"
 # The advisor is the model that analyses results and proposes experiments (`make advise`). "auto" = best model in your results.
 # [advisor]
 # model = "auto"
+
+# discovered by llmeval (ornith-agent:9b); 0 GB to download
+[[families]]
+name     = "ornith"
+variants = ["ornith:9b-q4_K_M", "ornith:9b-q8_0"]
+ctx      = 32768
