@@ -44,7 +44,9 @@ def run(harness, model, task):
         cmd = ["aider", "--model", f"ollama_chat/{model}", "--message", prompt, "--yes-always", "--no-auto-commits",
                "--no-show-model-warnings", "--no-check-update", "--no-analytics", "--test-cmd", "sh test.sh", "--auto-test"] + files
         env["OLLAMA_API_BASE"] = proxy
-    elif harness in ("pi", "qwen", "codex", "cline"):   # via `ollama launch`, pointed at the proxy with OLLAMA_HOST
+    elif harness == "pi":         # run pi directly against the proxy (`ollama launch` breaks behind it)
+        cmd = ["pi", "--provider", "ollama-proxy", "--model", model, "-p", prompt, "--no-session"]
+    elif harness in ("qwen", "codex", "cline"):   # via `ollama launch`, pointed at the proxy with OLLAMA_HOST
         extra = {"pi": ["-p", prompt, "--no-session"], "qwen": ["-p", prompt, "--yolo"],
                  "codex": ["exec", "--skip-git-repo-check", prompt], "cline": ["-y", prompt]}[harness]
         cmd = ["ollama", "launch", harness, "--model", model, "--"] + extra
@@ -66,6 +68,7 @@ def run(harness, model, task):
         dump.write(line)
         try: ev = json.loads(line)
         except Exception: continue
+        if not isinstance(ev, dict) or harness not in ("opencode", "minimal"): continue
         if harness == "minimal":
             if ev.get("call"):
                 calls += 1; key = ev["call"]

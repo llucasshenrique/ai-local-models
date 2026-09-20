@@ -1,0 +1,12 @@
+{"harness": "minimal", "model": "sw-ornith-9b-q4-k-m", "task": 1, "done": true, "wall_s": 8.5, "tool_calls": 3, "loop": false, "timeout": false, "llm_requests": 4, "peak_prompt_tokens": 646}
+{"harness": "minimal", "model": "sw-ornith-9b-q4-k-m", "task": 2, "done": true, "wall_s": 5.7, "tool_calls": 6, "loop": false, "timeout": false, "llm_requests": 4, "peak_prompt_tokens": 839}
+{"harness": "minimal", "model": "sw-ornith-9b-q4-k-m", "task": 3, "done": true, "wall_s": 4.7, "tool_calls": 4, "loop": false, "timeout": false, "llm_requests": 4, "peak_prompt_tokens": 733}
+{"harness": "aider", "model": "sw-ornith-9b-q4-k-m", "task": 1, "done": true, "wall_s": 13.7, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 841}
+{"harness": "aider", "model": "sw-ornith-9b-q4-k-m", "task": 2, "done": true, "wall_s": 17.8, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 922}
+{"harness": "aider", "model": "sw-ornith-9b-q4-k-m", "task": 3, "done": true, "wall_s": 15.3, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 869}
+{"harness": "minimal", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 17.0, "tool_calls": 2, "loop": false, "timeout": false, "llm_requests": 3, "peak_prompt_tokens": 414}
+{"harness": "minimal", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 7.8, "tool_calls": 5, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 456}
+{"harness": "minimal", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 7.6, "tool_calls": 5, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 492}
+{"harness": "aider", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 16.5, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 844}
+{"harness": "aider", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 31.8, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 925}
+{"harness": "aider", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 23.7, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 1, "peak_prompt_tokens": 877}
