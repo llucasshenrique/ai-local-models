@@ -4,10 +4,17 @@ PY     ?= python3
 EVAL   := $(PY) -m llmeval -c $(CONFIG)
 DEMO   := /tmp/llmeval-demo
 
-.PHONY: help test tui tui-demo list selfcheck prepare run fit report tune clean-demo
+.PHONY: help models add test tui tui-demo list selfcheck prepare run fit report tune clean-demo
 
 help:  ## show this help
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | column -t -s "$$(printf '\t')"
+
+models:  ## installed ollama models and which are in the config
+	$(EVAL) models
+
+add:  ## add installed models to the config: make add MODEL="granite4.1:8b qwen3:8b"  (PULL=1 downloads, BASE=x builds a tuned tag)
+	@test -n "$(MODEL)" || { echo 'usage: make add MODEL="tag1 tag2" [PULL=1] [BASE=base:tag CTX=32768]'; exit 2; }
+	$(EVAL) add $(MODEL) $(if $(PULL),--pull) $(if $(BASE),--base $(BASE)) $(if $(CTX),--ctx $(CTX))
 
 test:  ## unit tests + TUI pty test (no GPU, throw-away data)
 	$(PY) -m unittest discover -s tests -v

@@ -28,6 +28,19 @@ make tui         # TUI on your real results (tab 2: r = run, tab 3: m = fit, tab
 TUI keys: `1-5` tabs, arrows/PgUp/PgDn scroll, `x` stop after the current trial, `q` quit.
 `results/` is local data and git-ignored; set `LLMEVAL_RESULTS=/some/dir` to use another location.
 
+## Adding models
+
+```
+make models                                   # what ollama has installed, and which are already in the config
+make add MODEL="qwen3:8b granite4.1:3b"       # use installed models as-is (added to evals/default.toml)
+make add MODEL="granite4.1:8b" PULL=1         # download first, then add
+make add MODEL=my-agent:9b BASE=ornith:9b-q4_K_M CTX=32768   # build a tuned tag from a base (created by `make prepare`)
+```
+
+Or edit `evals/default.toml` by hand: a `[[models]]` entry with only `tag` uses an existing model unchanged; adding `base`
+(and optional `[models.params]`) makes `prepare` create it with the tuned Modelfile parameters.
+Then `make run` only runs what is missing (finished trials are skipped).
+
 ## How it works
 
 - **Tasks are data** (`tasks/*.json`: prompt, starting files, test command, protected files, reference solution).
