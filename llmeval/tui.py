@@ -1,11 +1,11 @@
 """Terminal UI (stdlib curses). Tabs: 1 Results  2 Run  3 Context fit  4 Models  5 Setup  6 Tune.
 Mouse: click tabs, buttons and model rows (click a selected row again to add it); wheel scrolls.
 Keys: 1-6 or left/right switch tab | up/down/PgUp/PgDn scroll | r start run (tab 2) | m measure fit (tab 3)
-      tab 4: up/down select, Enter add the selected installed model, n new model, f new family, R refresh
-      tab 5: s selfcheck, p prepare | tab 6: t tune the first model with a `base`, a ask the advisor for ideas | x stop after the current trial | q quit.
+      tab 4: up/down select, Enter add selected installed model, n new model, f new family, d discover a family online, y apply it, c clean losers, R refresh
+      tab 5: s selfcheck, p prepare | tab 6: t tune the first model with a `base`, F tune a family, a ask the advisor for ideas | x stop after the current trial | q quit.
 Long jobs run in one worker thread; the GPU lock keeps them serial and the UI never loads a model itself."""
 import collections, curses, threading, time
-from . import advisor, config, fit as fitmod, models as modelmgmt, ollama, report, runner, store, tasks as T
+from . import advisor, config, discover as discovermod, fit as fitmod, prune as prunemod, models as modelmgmt, ollama, report, runner, store, tasks as T
 from .harnesses import REGISTRY
 
 TABS = ["Results", "Run", "Context fit", "Models", "Setup", "Tune"]
@@ -60,7 +60,7 @@ def setup_lines(cfg):
 
 # ---- worker ----
 class Worker:
-    def __init__(self): self.log = collections.deque(maxlen=500); self.busy = ""; self.progress = (0, 0); self.stop = False; self.thread = None
+    def __init__(self): self.plan = None; self.log = collections.deque(maxlen=500); self.busy = ""; self.progress = (0, 0); self.stop = False; self.thread = None
     def start(self, name, fn):
         if self.thread and self.thread.is_alive(): self.log.append("busy: wait for the current job"); return
         self.stop = False; self.busy = name; self.progress = (0, 0)
@@ -113,6 +113,29 @@ def job_family(path, cfg, name, sizes, quants, ctx):
         if modelmgmt.add_family(path, name, sizes, quants, ctx, log=w.log.append): cfg.clear(); cfg.update(config.load(path))
     return fn
 
+def job_discover(cfg, name, ctx):
+    def fn(w):
+        w.plan = discovermod.discover(cfg, name, ctx, log=w.log.append)
+        w.log.extend(discovermod.format_plan(w.plan)); w.log.append("press y (Models tab) to add this family to the config")
+    return fn
+
+def job_apply(path, cfg, plan):
+    def fn(w):
+        if discovermod.apply(path, plan, w.log.append): cfg.clear(); cfg.update(config.load(path)); w.plan = None
+    return fn
+
+def job_prune(path, cfg, plan, drop):
+    def fn(w):
+        prunemod.execute(plan, path, drop, w.log.append); cfg.clear(); cfg.update(config.load(path))
+    return fn
+
+def job_tune_family(cfg, name):
+    def fn(w):
+        from . import tune
+        for ev in tune.tune_family(cfg, name, cfg.get("tune", {}).get("holdout", ["05-bug-across-files"]), cfg["run"]["harnesses"][0], 2, cfg["run"]["timeout"]):
+            w.log.append(str({k: v for k, v in ev.items() if k != "type"}) if ev["type"] not in ("family_done",) else f'FAMILY DONE confirmed={ev["confirmed"]} {ev.get("reason") or ""} {ev.get("proposal") or ""}')
+    return fn
+
 def job_tune(cfg):
     def fn(w):
         from . import tune
@@ -126,8 +149,8 @@ def job_tune(cfg):
 MODELS_HEADER = 3                      # lines above the first model row in models_lines()
 BUTTONS = {                            # tab index -> [(label, key it triggers)]
     1: [("Run (r)", "r"), ("Stop (x)", "x")], 2: [("Measure fit (m)", "m")],
-    3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("New family (f)", "f"), ("Refresh (R)", "R")],
-    4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p")], 5: [("Tune (t)", "t"), ("Advise (a)", "a"), ("Stop (x)", "x")]}
+    3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("New family (f)", "f"), ("Discover (d)", "d"), ("Apply discovered (y)", "y"), ("Clean losers (c)", "c"), ("Refresh (R)", "R")],
+    4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p")], 5: [("Tune (t)", "t"), ("Tune family (F)", "F"), ("Advise (a)", "a"), ("Stop (x)", "x")]}
 
 def tab_spans():
     """[(x0, x1)] of each tab label in the title bar; shared by drawing and click handling."""
@@ -192,6 +215,25 @@ def loop(scr, cfg, w, path):
             ctx = prompt(scr, "num_ctx (empty = default)") if quants else None
             if quants:
                 w.start("add family", job_family(path, cfg, name, [x.strip() for x in sizes.split(",") if x.strip()], [x.strip() for x in quants.split(",") if x.strip()], int(ctx) if ctx and ctx.isdigit() else None))
+        elif k == ord("d") and tab == 3:
+            name = prompt(scr, "family to discover on ollama/HuggingFace (e.g. granite4.1)")
+            if name:
+                ctx = prompt(scr, "target num_ctx (empty = 32768)")
+                w.start("discover", job_discover(cfg, name, int(ctx) if ctx and ctx.isdigit() else 32768))
+        elif k == ord("y") and tab == 3:
+            if w.plan: w.start("apply plan", job_apply(path, cfg, w.plan))
+            else: w.log.append("no discovered plan yet: press d first")
+        elif k == ord("c") and tab == 3:
+            p = prunemod.plan(cfg); w.log.extend(prunemod.format_plan(p))
+            if p["delete"]:
+                ans = prompt(scr, f"type DELETE to remove {len(p['delete'])} models, DELETE+BASES to also free unused base models (anything else cancels)")
+                if ans in ("DELETE", "DELETE+BASES"):
+                    if ans == "DELETE+BASES": p = prunemod.plan(cfg, include_bases=True)
+                    w.start("prune", job_prune(path, cfg, p, False))
+                else: w.log.append("cancelled: nothing deleted")
+        elif k == ord("F") and tab == 5:
+            name = prompt(scr, "family to tune (must have variants with a base in the config)")
+            if name: w.start("tune family", job_tune_family(cfg, name))
         elif k == ord("a") and tab == 5: w.start("advise", job_advise(cfg))
         elif k == ord("s") and tab == 4: w.start("selfcheck", job_setup(cfg, "selfcheck"))
         elif k == ord("p") and tab == 4: w.start("prepare", job_setup(cfg, "prepare"))

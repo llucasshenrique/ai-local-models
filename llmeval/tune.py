@@ -71,4 +71,51 @@ def tune(model, holdout, harness="pi", reps=2, timeout=180, space=None, keep_tag
         if proxy: proxy.close()
         if not keep_tags:
             for t in made:                       # only tags created by this run, all prefixed `tune-`
-                if t.startswith("tune-"): subprocess.run(["ollama", "rm", t], capture_output=True)
+                if t.startswith("tune-"): ollama.stop(t); subprocess.run(["ollama", "rm", t], capture_output=True)   # unload first: a loaded tag cannot be removed
+
+
+def tune_family(cfg, name, holdout, harness="pi", reps=2, timeout=180, space=None):
+    """Family-level tuning: (1) tune the family's recommended variant (else its best), (2) check whether the winning parameter
+    changes also help every sibling variant on the held-out tasks. The proposal is written only if the tuned variant is
+    confirmed AND no sibling gets worse. Generator of progress events; configs are never modified."""
+    from . import report
+    variants = [m for m in cfg["models"] if m.get("family") == name and m.get("base")]
+    if not variants: raise SystemExit(f"family '{name}' has no buildable variants in the config")
+    table = {f: (rows, pick) for f, rows, pick, _ in report.family_table()}
+    rows, pick = table.get(name, ([], None))
+    lead = next((v for v in variants if pick and v["tag"] == pick["tag"]), None) or max(
+        variants, key=lambda v: next((r["rate"] for r in rows if r["tag"] == v["tag"]), -1))
+    yield {"type": "family", "family": name, "lead": lead["tag"], "siblings": [v["tag"] for v in variants if v is not lead]}
+    result = None
+    for ev in tune(lead, holdout, harness, reps, timeout, space=space):
+        yield ev
+        if ev["type"] == "done": result = ev
+    if not result or not result["confirmed"]:
+        yield {"type": "family_done", "confirmed": False, "reason": "no confirmed improvement on the lead variant", "proposal": None}; return
+    changed = {k: v for k, v in result["params"].items() if lead["params"].get(k) != v}
+    held = [t for t in T.load() if t["id"] in holdout]; proxy = Proxy() if REGISTRY[harness].needs_proxy else None; made, sib = [], []
+    try:
+        with gpu_lock():
+            ollama.unload_all()
+            for v in variants:
+                if v is lead: continue
+                def sc(params):
+                    tag = "tune-" + hashlib.sha1(json.dumps([v["base"], params], sort_keys=True).encode()).hexdigest()[:8]
+                    if not ollama.has(tag): ollama.create(tag, v["base"], params); made.append(tag)
+                    s = score(_evaluate(harness, tag, held, 3, timeout, int(params.get("num_ctx", 16384)), proxy)); ollama.stop(tag); return s
+                b, w = sc(v["params"]), sc({**v["params"], **changed})
+                sib.append({"variant": v["tag"], "baseline": b, "tuned": w, "improves": w >= b})
+                store.append({"phase": "family_transfer", "family": name, **sib[-1], "changed": changed}, TUNE_LOG)
+                yield {"type": "transfer", **sib[-1]}
+    finally:
+        if proxy: proxy.close()
+        for t in made:
+            if t.startswith("tune-"): ollama.stop(t); subprocess.run(["ollama", "rm", t], capture_output=True)
+    ok = all(x["improves"] for x in sib)
+    out = os.path.join(store.RESULTS, "tune-family-best.toml")
+    if ok:
+        with open(out, "w") as f:
+            f.write(f'# Proposed by `llmeval tune --family {name}`: lead {lead["tag"]} confirmed; no sibling variant got worse. Review before applying.\n[[families]]\nname = "{name}"\n[families.params]\n')
+            for k, val in changed.items(): f.write(f"{k} = {val}\n")
+    yield {"type": "family_done", "confirmed": ok, "changed": changed, "transfer": sib, "proposal": out if ok else None,
+           "reason": None if ok else "the change helped the lead but hurt at least one sibling variant"}

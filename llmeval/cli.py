@@ -1,5 +1,5 @@
 import argparse, json, os, sys
-from . import config, fit as fitmod, ollama, report, runner, store, tasks as T
+from . import config, discover as discovermod, fit as fitmod, prune as prunemod, ollama, report, runner, store, tasks as T
 from .harnesses import REGISTRY
 
 DEFAULT_CFG = os.path.join(store.ROOT, "evals", "default.toml")
@@ -58,16 +58,39 @@ def cmd_report(a):
 
 def cmd_tune(a):
     from . import tune
-    cfg = config.load(a.config); model = next(m for m in cfg["models"] if m["tag"] == a.model)
-    if not model.get("base"): raise SystemExit("tune needs a model with a `base` in the config")
-    holdout = cfg.get("tune", {}).get("holdout", ["05-bug-across-files"])
+    cfg = config.load(a.config); holdout = cfg.get("tune", {}).get("holdout", ["05-bug-across-files"])
+    if not a.model and not a.family: raise SystemExit("give a MODEL tag or --family NAME")
     space = None
     if a.from_advice:
         from . import advisor
-        space = advisor.space_from_advice(a.model)
+        space = advisor.space_from_advice(a.model or next(v["tag"] for v in cfg["models"] if v.get("family") == a.family))
         if not space: raise SystemExit("no saved advice for this model: run `llmeval advise` first")
-    for ev in tune.tune(model, holdout, a.harness, a.reps, cfg["run"]["timeout"], space=space):
-        print(json.dumps(ev))
+    if a.family:
+        events = tune.tune_family(cfg, a.family, holdout, a.harness, a.reps, cfg["run"]["timeout"], space)
+    else:
+        model = next(m for m in cfg["models"] if m["tag"] == a.model)
+        if not model.get("base"): raise SystemExit("tune needs a model with a `base` in the config")
+        events = tune.tune(model, holdout, a.harness, a.reps, cfg["run"]["timeout"], space=space)
+    for ev in events: print(json.dumps(ev))
+
+def cmd_discover(a):
+    cfg = config.load(a.config)
+    plan = discovermod.discover(cfg, a.name, a.ctx, a.max, a.hf, a.advisor)
+    print("\n".join(discovermod.format_plan(plan)))
+    if a.apply:
+        discovermod.apply(a.config, plan)
+        if a.pull: config.prepare(config.load(a.config), family=a.name)
+        else: print(f"next: python3 -m llmeval prepare --family {a.name}   (downloads {plan['download_gb']} GB)")
+    else: print("\n(dry run: nothing changed. Add --apply to write the family to the config, --pull to also download.)")
+
+def cmd_prune(a):
+    cfg = config.load(a.config)
+    plan = prunemod.plan(cfg, a.keep_top, a.margin, a.min_n, a.include_bases)
+    print("\n".join(prunemod.format_plan(plan)))
+    if a.verbose: print("\nprotected:", json.dumps(plan["protected"], indent=1))
+    if not plan["delete"]: return
+    if not a.yes: print("\n(dry run: nothing deleted. Re-run with --yes to delete, --drop-config to also remove their config entries.)"); return
+    prunemod.execute(plan, a.config, a.drop_config)
 
 def cmd_import_legacy(a):
     """Import the pre-llmeval repeats/harness results (marked legacy) so they show up in reports."""
@@ -141,11 +164,19 @@ def main(argv=None):
     r = sub.add_parser("run"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
     f = sub.add_parser("fit"); f.add_argument("--ctx", default="16384,32768,49152,65536"); f.set_defaults(f=cmd_fit)
     o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
-    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
+    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model", nargs="?"); t.add_argument("--family", help="tune a whole family: lead variant, then check the siblings"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
     sub.add_parser("import-legacy").set_defaults(f=cmd_import_legacy)
     ad = sub.add_parser("advise", help="ask the best local model to analyse results and propose experiments")
     ad.add_argument("--model", help="advisor tag (default: [advisor] model in the config, else the best model in your results)")
     ad.add_argument("--think", action="store_true", help="enable thinking mode if the model supports it"); ad.add_argument("--dry-run", action="store_true", help="show the prompt, call nothing"); ad.set_defaults(f=cmd_advise)
+    dv = sub.add_parser("discover", help="find a family on ollama/HuggingFace and let the advisor pick sizes and quantizations for this machine")
+    dv.add_argument("name"); dv.add_argument("--ctx", type=int, default=32768); dv.add_argument("--max", type=int, default=3, help="variants to choose")
+    dv.add_argument("--hf", action="store_true", help="also search HuggingFace (automatic when ollama lists fewer than 2 variants)"); dv.add_argument("--advisor")
+    dv.add_argument("--apply", action="store_true", help="write the family to the config"); dv.add_argument("--pull", action="store_true", help="with --apply: also download"); dv.set_defaults(f=cmd_discover)
+    pr = sub.add_parser("prune", help="delete models that lost the ranking (dry run unless --yes)")
+    pr.add_argument("--keep-top", type=int, default=3); pr.add_argument("--margin", type=float, default=0.15); pr.add_argument("--min-n", type=int, default=6)
+    pr.add_argument("--include-bases", action="store_true", help="also delete base models whose tuned tags are all deleted (this frees the disk)")
+    pr.add_argument("--drop-config", action="store_true"); pr.add_argument("--verbose", action="store_true"); pr.add_argument("--yes", action="store_true"); pr.set_defaults(f=cmd_prune)
     sub.add_parser("families", help="configured families, variant status and the current recommendation").set_defaults(f=cmd_families)
     af = sub.add_parser("add-family", help="add a model family: every size x quantization becomes a variant"); af.add_argument("name")
     af.add_argument("--sizes", required=True, help="comma list, e.g. 3b,8b"); af.add_argument("--quants", required=True, help="comma list, e.g. q4_K_M,q6_K,q8_0")

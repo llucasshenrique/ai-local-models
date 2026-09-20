@@ -16,7 +16,8 @@ QUANT = re.compile(r"\b(q\d+(?:_[a-z0-9]+)*|bf16|fp16|f16)\b", re.I)
 def parse_variant(tag):
     """(size, quant) guessed from an ollama tag like 'granite4.1:8b-q4_K_M'; either may be None."""
     t = tag.split(":", 1)[-1]
-    s, q = SIZE.search(t), QUANT.search(t)
+    s = SIZE.search(t) or (SIZE.search(tag.split(":", 1)[0]) if tag.startswith("hf.co/") else None)   # HF repos put the size in the repo name
+    q = QUANT.search(t)
     return (s.group(0).lower() if s else None), (q.group(0) if q else None)
 
 def params_b(size):

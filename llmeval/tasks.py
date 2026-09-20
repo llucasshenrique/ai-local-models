@@ -1,6 +1,6 @@
 """Tasks are data: tasks/*.json = {id, title, prompt, files, test, protected, solution}. `selfcheck` proves each is
 solvable (test fails on the starting files, passes once `solution` is applied)."""
-import glob, json, os, subprocess, tempfile
+import glob, json, os, signal, subprocess, tempfile
 
 TASK_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tasks")
 
@@ -19,15 +19,23 @@ def materialize(task, files=None):
     subprocess.run("git init -q && git add -A && git -c user.name=t -c user.email=t@t commit -qm init", shell=True, cwd=d)
     return d
 
-def verify(task, d):
+def run_test(cmd, d, timeout=60):
+    """Return code of the test command; a hang (e.g. an infinite loop the agent wrote) counts as failure, and the whole
+    process group is killed so nothing lingers."""
+    p = subprocess.Popen(cmd, shell=True, cwd=d, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    try: return p.wait(timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL); p.wait(); return 124
+
+def verify(task, d, timeout=60):
     """(passed, tampered): tests must pass AND the protected files must be byte-identical to the originals."""
     tampered = any(open(os.path.join(d, f)).read() != task["files"][f] if os.path.exists(os.path.join(d, f)) else True
                    for f in task["protected"])
-    ok = subprocess.run(task["test"], shell=True, cwd=d, capture_output=True, timeout=60).returncode == 0
+    ok = run_test(task["test"], d, timeout) == 0
     return ok and not tampered, tampered
 
 def selfcheck(task):
     import shutil
-    d = materialize(task); before = subprocess.run(task["test"], shell=True, cwd=d, capture_output=True).returncode; shutil.rmtree(d)
+    d = materialize(task); before = run_test(task["test"], d); shutil.rmtree(d)
     d = materialize(task, task.get("solution", {})); after, _ = verify(task, d); shutil.rmtree(d)
     return before != 0 and after

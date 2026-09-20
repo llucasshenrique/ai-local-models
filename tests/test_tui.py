@@ -53,9 +53,12 @@ class TuiTest(unittest.TestCase):
         for chunk in (b"f", b"granite4.1\r", b"3b,8b\r", b"q4_K_M,q8_0\r", b"\r"): s.send(chunk)      # new family through the prompts
         s.pump(1.5)
         self.assertIn('name   = "granite4.1"', self.conf()); self.assertIn('sizes  = ["3b", "8b"]', self.conf())
+        s.send(b"c", 1.0)                                                    # clean losers: plan is shown, a wrong confirmation deletes nothing
+        if b"type DELETE" in s.buf: s.send(b"no\r", 1.0)
         s.send(RIGHT); s.send(LEFT); s.send(UP)                             # tab/arrow keys must not crash
         t = s.text()
         for needle in ("Harness", "Context fit", "Installed ollama models", "OK   01-add-function", "added: bbb:1b"): self.assertIn(needle, t, needle)
+        self.assertTrue("cancelled: nothing deleted" in t or "nothing to clean" in t)
         self.assertEqual(s.quit(), 0)
 
     def test_mouse_tabs_buttons_rows_and_wheel(self):

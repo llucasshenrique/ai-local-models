@@ -14,6 +14,19 @@ class TaskTests(unittest.TestCase):
         ok, tampered = T.verify(t, d)
         self.assertFalse(ok); self.assertTrue(tampered)
 
+    def test_a_hanging_test_is_a_failure_not_a_crash(self):
+        import time
+        t = T.load(["03-fix-bug"])[0]
+        d = T.materialize(t, {"util.py": "while True:\n    pass\ndef is_even(n):\n    return n % 2 == 0\n"})
+        t0 = time.time(); ok, tampered = T.verify(t, d, timeout=2)
+        self.assertFalse(ok); self.assertFalse(tampered); self.assertLess(time.time() - t0, 10)
+
+    def test_a_hanging_test_is_a_failure_not_a_crash(self):
+        import time
+        t = {**T.load(["03-fix-bug"])[0], "test": "sleep 30"}
+        d = T.materialize(t); t0 = time.time()
+        self.assertEqual(T.verify(t, d, timeout=1), (False, False)); self.assertLess(time.time() - t0, 5)
+
 class StoreTests(unittest.TestCase):
     def test_invalidate_moves_rows_aside(self):
         with tempfile.TemporaryDirectory() as d:
