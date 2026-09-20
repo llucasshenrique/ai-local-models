@@ -24,8 +24,8 @@ def invalidate(pred, reason, path=RUNS):
     """Move rows matching pred(row) to results/invalid/ with a reason; returns how many."""
     rs = rows(path); bad = [r for r in rs if pred(r)]
     if bad:
-        os.makedirs(os.path.join(RESULTS, "invalid"), exist_ok=True)
-        with open(os.path.join(RESULTS, "invalid", "runs-invalidated.jsonl"), "a") as f:
+        inv = os.path.join(os.path.dirname(path), "invalid"); os.makedirs(inv, exist_ok=True)   # next to the file it came from
+        with open(os.path.join(inv, "runs-invalidated.jsonl"), "a") as f:
             for r in bad: f.write(json.dumps({**r, "invalid_reason": reason}) + "\n")
         with open(path, "w") as f:
             for r in rs:
