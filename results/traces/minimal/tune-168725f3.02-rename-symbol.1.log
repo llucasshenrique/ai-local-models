@@ -1,0 +1,7 @@
+{"call": "[\"read_file\", {\"path\": \"a.py\"}]"}
+{"call": "[\"read_file\", {\"path\": \"b.py\"}]"}
+{"call": "[\"read_file\", {\"path\": \"test.sh\"}]"}
+{"call": "[\"write_file\", {\"content\": \"def total(x):\\n    return x * 2\", \"path\": \"a.py\"}]"}
+{"call": "[\"write_file\", {\"content\": \"from a import total\\n\\ndef run():\\n    return total(21)\", \"path\": \"b.py\"}]"}
+{"call": "[\"run_shell\", {\"command\": \"sh test.sh\"}]"}
+{"final": "DONE"}

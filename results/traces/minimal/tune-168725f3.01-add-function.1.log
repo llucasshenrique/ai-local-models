@@ -1,0 +1,4 @@
+{"call": "[\"read_file\", {\"path\": \"test.sh\"}]"}
+{"call": "[\"write_file\", {\"content\": \"def add(a, b):\\n    return a + b\\n\", \"path\": \"calc.py\"}]"}
+{"call": "[\"run_shell\", {\"command\": \"sh test.sh\"}]"}
+{"final": "DONE"}

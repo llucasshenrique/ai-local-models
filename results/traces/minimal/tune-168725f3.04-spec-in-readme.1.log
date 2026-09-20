@@ -1,0 +1,7 @@
+{"call": "[\"read_file\", {\"path\": \"README.md\"}]"}
+{"call": "[\"read_file\", {\"path\": \"test.sh\"}]"}
+{"call": "[\"write_file\", {\"content\": \"import re\\n\\n\\ndef slugify(text):\\n    if not text:\\n        return 'n-a'\\n    # Lowercase\\n    text = text.lower()\\n    # Keep only letters and digits; replace everything else with space\\n    text = re.sub(r'[^a-z0-9]', ' ', text)\\n    # Collapse multiple spaces into one\\n    text = re.sub(r' +', '-', text)\\n    # Strip leading/trailing dashes\\n    text = text.strip('-')\\n    return text\\n\", \"path\": \"slug.py\"}]"}
+{"call": "[\"run_shell\", {\"command\": \"sh test.sh\"}]"}
+{"call": "[\"write_file\", {\"content\": \"import re\\n\\n\\ndef slugify(text):\\n    if not text:\\n        return 'n-a'\\n    # Lowercase\\n    text = text.lower()\\n    # Keep only letters and digits; replace everything else with space\\n    text = re.sub(r'[^a-z0-9]', ' ', text)\\n    # Collapse multiple spaces into one\\n    text = re.sub(r' +', '-', text)\\n    # Strip leading/trailing dashes\\n    text = text.strip('-')\\n    if not text:\\n        return 'n-a'\\n    return text\\n\", \"path\": \"slug.py\"}]"}
+{"call": "[\"run_shell\", {\"command\": \"sh test.sh\"}]"}
+{"final": "DONE"}

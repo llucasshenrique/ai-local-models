@@ -2,7 +2,9 @@
 
 Goal: run small, single-file, well-specified code micro-tasks (with a test command) on local models, as a
 native Orca agent, without loops. Hardware: RTX 2080 Ti 11 GB, 31 GB RAM, ollama 0.31.1. Raw data is in `results/`,
-tooling in `bench/`, `scripts/`, `harness/`, `modelfiles/`; configs in `config/`.
+tooling in the `llmeval/` package (see README.md), `harness/`, `modelfiles/`; configs in `config/`.
+The measurements below were taken with the earlier ad-hoc scripts (`bench/`, `scripts/`, removed in favour of `llmeval`; see git
+history before commit 94da70c). Re-run or extend them with `bin/llmeval run|fit|report`; old rows import via `llmeval import-legacy`.
 
 ## TL;DR
 
@@ -102,7 +104,7 @@ tokens for opencode come from its event stream, not the proxy.
 | qwen3-agent:8b | 2/3 | 140.1, 59.9, 62.1 |
 
 
-## Tuned tags (`modelfiles/`, created by `scripts/create-models.sh`)
+## Tuned tags (`modelfiles/`, now built by `llmeval prepare` from `evals/default.toml`)
 
 | Tag | Base | Sampling | ctx / predict | Evidence |
 |---|---|---|---|---|
