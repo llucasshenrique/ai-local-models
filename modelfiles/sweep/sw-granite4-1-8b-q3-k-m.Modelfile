@@ -1,0 +1,8 @@
+FROM granite4.1:8b-q3_K_M
+PARAMETER temperature 0.25
+PARAMETER top_k 20
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.05
+PARAMETER repeat_last_n 256
+PARAMETER num_ctx 16384
+PARAMETER num_predict 4096
