@@ -21,11 +21,21 @@ def cmd_selfcheck(a):
 def cmd_prepare(a): config.prepare(config.load(a.config), family=a.family, dry_run=a.dry_run)
 
 def cmd_run(a):
-    for ev in runner.run_matrix(config.load(a.config), force=a.force, keep=a.keep, family=a.family, variant=a.variant, task_ids=a.tasks.split(',') if a.tasks else None):
+    ctx_sweep = [int(x.strip()) for x in a.ctx_sweep.split(",")] if getattr(a, "ctx_sweep", None) else None
+    task_ids = a.tasks.split(',') if a.tasks else None
+    for ev in runner.run_matrix(
+        config.load(a.config), force=a.force, keep=a.keep, family=a.family,
+        variant=a.variant, task_ids=task_ids, ctx_sweep=ctx_sweep,
+        experiment_id=getattr(a, "experiment_id", None),
+        reps_override=getattr(a, "reps", None),
+        split_name=getattr(a, "split", None)
+    ):
         t = ev["type"]
         if t == "plan": print(f"{ev['total']} trials to run ({ev['skipped']} already done)")
         elif t == "model": print(f"== {ev['model']}")
-        elif t == "start": print(f"[{ev['n']}] {ev['harness']:9} {ev['task']} rep {ev['rep']} ...", end=" ", flush=True)
+        elif t == "start":
+            ctx_str = f" ctx {ev.get('num_ctx')}" if ev.get("num_ctx") else ""
+            print(f"[{ev['n']}] {ev['harness']:9} {ev['task']}{ctx_str} rep {ev['rep']} ...", end=" ", flush=True)
         elif t == "trial": print(("PASS" if ev["done"] else "FAIL") + f" {ev['wall_s']}s" + (" LOOP" if ev.get("loop") else "") + (" TIMEOUT" if ev["timeout"] else "") + (" TAMPERED" if ev["tampered"] else ""))
 
 def cmd_families(a):
@@ -88,7 +98,11 @@ def cmd_tune(a):
     else:
         model = next(m for m in cfg["models"] if m["tag"] == a.model)
         if not model.get("base"): raise SystemExit("tune needs a model with a `base` in the config")
-        events = tune.tune(model, holdout, a.harness, a.reps, cfg["run"]["timeout"], space=space)
+        events = tune.tune(
+            model, holdout, a.harness, a.reps, cfg["run"]["timeout"], space=space,
+            confirmation_reps=getattr(a, "confirm_reps", 5),
+            cfg_splits=cfg.get("tasks", {}).get("split", {})
+        )
     for ev in events: print(json.dumps(ev))
 
 def cmd_discover(a):
@@ -109,6 +123,126 @@ def cmd_prune(a):
     if not plan["delete"]: return
     if not a.yes: print("\n(dry run: nothing deleted. Re-run with --yes to delete, --drop-config to also remove their config entries.)"); return
     prunemod.execute(plan, a.config, a.drop_config)
+
+def cmd_loop(a):
+    """Automated end-to-end evaluation & self-improvement loop for a family."""
+    cfg = config.load(a.config)
+    family = a.family
+    if not family:
+        cfg_families = cfg.get("families", [])
+        if cfg_families and cfg_families[0].get("name"):
+            family = cfg_families[0]["name"]
+        else:
+            f_cands = [m.get("family") for m in cfg.get("models", []) if m.get("family")]
+            family = f_cands[0] if f_cands else "granite4.1"
+
+    print(f"=== [1/5] DISCOVERY: Searching models for family '{family}' ===")
+    init_ctx = a.ctx if a.ctx > 0 else 32768
+    plan = discovermod.discover(cfg, family, init_ctx)
+    print("\n".join(discovermod.format_plan(plan)))
+    if plan and plan.get("models"):
+        discovermod.apply(a.config, plan)
+        cfg = config.load(a.config)
+
+    print(f"\n=== [2/5] HARDWARE FIT: Probing context feasibility & limits ===")
+    family_models = [m for m in cfg.get("models", []) if m.get("family") == family or family in m.get("tag", "")]
+    hardware_max_safe = 32768
+    for m in (family_models or cfg.get("models", [])):
+        if ollama.has(m["tag"]):
+            for r in fitmod.measure([m["tag"]], ctxs=[16384, 32768, 49152, 65536]):
+                print(f"  {r['model']} {r['num_ctx'] // 1024}k: {r.get('fit', r.get('error'))} {r.get('tok_s', '')} tok/s")
+                if not r.get("error") and (r.get("fit") or {}).get("gpu_pct", 0) >= 99.0:
+                    hardware_max_safe = max(hardware_max_safe, r["num_ctx"])
+
+    print(f"\n=== [3/5] BENCHMARK MATRIX & AUTONOMOUS CONTEXT DISCOVERY ===")
+    if a.ctx > 0:
+        candidates = [16384, a.ctx] if a.ctx > 16384 else [a.ctx]
+    elif hardware_max_safe >= 65536:
+        candidates = [16384, 32768, 65536]
+    elif hardware_max_safe >= 32768:
+        candidates = [16384, 32768]
+    else:
+        candidates = [8192, 16384]
+
+    print(f"Sweeping context candidates: {[c // 1024 for c in candidates]}k...")
+    has_fam = any(m.get("family") == family for m in cfg.get("models", []))
+    for ev in runner.run_matrix(cfg, family=family if has_fam else None, ctx_sweep=candidates):
+        if ev["type"] == "trial":
+            ctx_str = f" ctx {ev.get('num_ctx')}" if ev.get("num_ctx") else ""
+            print(f"  {'PASS' if ev['done'] else 'FAIL'} {ev['harness']:9} {ev['task']}{ctx_str} #{ev['rep']} {ev['wall_s']}s")
+
+    # Select best context size
+    curve = report.context_curve()
+    fam_curve = [c for c in curve if (any(m["tag"] == c["model"] for m in family_models) or family in c["model"]) and c["n"] > 0]
+    if not fam_curve:
+        fam_curve = [c for c in curve if c["num_ctx"] in candidates and c["n"] > 0]
+
+    if fam_curve:
+        import collections
+        ctx_scores = collections.defaultdict(list)
+        for c in fam_curve: ctx_scores[c["num_ctx"]].append(c)
+        ranked = []
+        for c_val, c_list in ctx_scores.items():
+            avg_rate = sum(x["rate"] for x in c_list) / len(c_list)
+            tot_fails = sum(x["failures"] for x in c_list)
+            med_wall = sum((x["median_wall"] or 0) for x in c_list) / len(c_list)
+            ranked.append((c_val, avg_rate, tot_fails, med_wall))
+        ranked.sort(key=lambda x: (-x[1], x[2], x[3], -x[0]))
+        best_c, b_rate, b_fails, b_wall = ranked[0]
+        print(f"\n--> BEST CONTEXT DISCOVERED: {best_c // 1024}k (Pass Rate: {b_rate*100:.0f}%, Wall: {b_wall:.1f}s, Fails: {b_fails})")
+        for m in family_models:
+            fitmod.apply_context(m["tag"], best_c, config_path=a.config)
+        cfg = config.load(a.config)
+    else:
+        best_c = candidates[-1]
+        print(f"\n--> Defaulting to hardware-safe context: {best_c // 1024}k")
+
+    print(f"\n=== [4/5] AUTONOMOUS RECURSIVE SELF-IMPROVEMENT (RSI) ===")
+    from . import tune
+    holdout = cfg.get("tune", {}).get("holdout", ["05-bug-across-files"])
+    harness = cfg["run"]["harnesses"][0]
+    timeout = cfg["run"]["timeout"]
+    max_cycles = getattr(a, "cycles", 3) or 3
+
+    for cycle in range(1, max_cycles + 1):
+        print(f"\n--- Recursive Self-Improvement Cycle {cycle}/{max_cycles} ---")
+        improved = False
+        if has_fam:
+            for ev in tune.tune_family(cfg, family, holdout, harness, a.reps, timeout, auto_apply=True, config_path=a.config):
+                if ev["type"] == "candidate":
+                    print(f"  Variant {ev.get('candidate')}: score={ev.get('score')} accepted={ev.get('accepted')} ({ev.get('note', '')})")
+                elif ev["type"] == "family_done":
+                    if ev.get("confirmed"):
+                        improved = True
+                        print(f"  Cycle {cycle} Winner Promoted: {ev.get('winner')}")
+                    else:
+                        print(f"  Cycle {cycle}: No sibling improvement confirmed ({ev.get('reason')}).")
+        else:
+            lead = next((m for m in family_models if m.get("base")), None)
+            if lead:
+                for ev in tune.tune(lead, holdout, harness, a.reps, timeout, confirmation_reps=a.confirm_reps, cfg_splits=cfg.get("tasks", {}).get("split", {}), auto_apply=True, config_path=a.config):
+                    if ev["type"] == "candidate":
+                        print(f"  Candidate {ev.get('changed')}: score={ev.get('score')} accepted={ev.get('accepted')} ({ev.get('note', '')})")
+                    elif ev["type"] == "done":
+                        if ev.get("confirmed"):
+                            improved = True
+                            print(f"  Cycle {cycle} Winner Promoted: winner={ev.get('winner')}")
+                        else:
+                            print(f"  Cycle {cycle}: No candidate achieved statistical confirmation.")
+            else:
+                print("  No tunable base models; skipping parameter mutation.")
+                break
+
+        cfg = config.load(a.config)
+        if not improved:
+            print("  RSI Convergence reached: System stabilized; no further statistically supported improvements.")
+            break
+
+    print(f"\n=== [5/5] MULTI-OBJECTIVE PARETO RECOMMENDATIONS ===")
+    for fam_name, rows, pick, why in report.family_table(policy=a.policy):
+        if fam_name == family:
+            ci = f"[{int(100*pick.get('ci_low', 0))}%, {int(100*pick.get('ci_high', 0))}%]" if pick else ""
+            print(f"Family {fam_name} Winner ({a.policy}): {pick['tag'] if pick else 'None'} {ci} ({why})")
 
 def cmd_import_legacy(a):
     """Import the pre-llmeval repeats/harness results (marked legacy) so they show up in reports."""
@@ -179,7 +313,12 @@ def main(argv=None):
     sub.add_parser("selfcheck", help="prove every task is solvable (no GPU)").set_defaults(f=cmd_selfcheck)
     sub.add_parser("prepare", help="pull base models and create tuned tags").set_defaults(f=cmd_prepare)
     sub.choices["prepare"].add_argument("--family"); sub.choices["prepare"].add_argument("--dry-run", action="store_true")
-    r = sub.add_parser("run"); r.add_argument("--variant", help="label stored with each trial so before/after runs of the same trials can be compared"); r.add_argument("--tasks", help="comma list of task ids (overrides the config)"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
+    r = sub.add_parser("run"); r.add_argument("--variant", help="label stored with each trial so before/after runs of the same trials can be compared"); r.add_argument("--tasks", help="comma list of task ids (overrides the config)"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true")
+    r.add_argument("--ctx-sweep", help="comma-separated context sizes to benchmark, e.g. 16384,32768,65536")
+    r.add_argument("--experiment-id", help="experiment identity identifier")
+    r.add_argument("--split", help="evaluate only tasks from this split: train, val, or test")
+    r.add_argument("--reps", type=int, help="override repetition count")
+    r.set_defaults(f=cmd_run)
     f = sub.add_parser("fit", help="GPU fit measurement or empirical context optimization")
     f.add_argument("--ctx", default="16384,32768,49152,65536", help="comma-separated context sizes to probe")
     f.add_argument("--optimize", action="store_true", help="run empirical optimization loop to find max practical context")
@@ -189,8 +328,12 @@ def main(argv=None):
     f.add_argument("--stress", type=float, default=0.75, help="context load ratio for stress testing (default: 0.75)")
     f.add_argument("--apply", action="store_true", help="recreate model tag with recommended safe num_ctx")
     f.set_defaults(f=cmd_fit)
-    o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
-    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model", nargs="?"); t.add_argument("--family", help="tune a whole family: lead variant, then check the siblings"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
+    o = sub.add_parser("report"); o.add_argument("--out")
+    o.add_argument("--policy", default="balanced", choices=["balanced", "max_quality", "fastest", "pareto"], help="Pareto recommendation policy")
+    o.set_defaults(f=cmd_report)
+    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model", nargs="?"); t.add_argument("--family", help="tune a whole family: lead variant, then check the siblings"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed")
+    t.add_argument("--confirm-reps", type=int, default=5, help="repetitions for confirmation phase before promotion")
+    t.set_defaults(f=cmd_tune)
     sub.add_parser("import-legacy").set_defaults(f=cmd_import_legacy)
     ad = sub.add_parser("advise", help="ask the best local model to analyse results and propose experiments")
     ad.add_argument("--model", help="advisor tag (default: [advisor] model in the config, else the best model in your results)")
@@ -215,5 +358,13 @@ def main(argv=None):
     ap = sub.add_parser("apply-ctx", help="apply a context size across Modelfiles, evals config, Pi agent, Opencode, and Ollama")
     ap.add_argument("model"); ap.add_argument("ctx", type=int); ap.set_defaults(f=cmd_apply_ctx)
     sub.add_parser("demo-data", help="write synthetic results (use with LLMEVAL_RESULTS=/tmp/dir)").set_defaults(f=cmd_demo_data)
+    lp = sub.add_parser("loop", help="automated end-to-end evaluation & self-improvement loop for a family")
+    lp.add_argument("family", nargs="?", default="", help="family name (optional, defaults to primary configured family)")
+    lp.add_argument("--ctx", type=int, default=0, help="target context size (0 = auto-discover optimal context)")
+    lp.add_argument("--cycles", type=int, default=3, help="maximum recursive self-improvement cycles (default: 3)")
+    lp.add_argument("--reps", type=int, default=2)
+    lp.add_argument("--confirm-reps", type=int, default=5)
+    lp.add_argument("--policy", default="balanced", choices=["balanced", "max_quality", "fastest", "pareto"])
+    lp.set_defaults(f=cmd_loop)
     sub.add_parser("tui").set_defaults(f=cmd_tui)
     a = p.parse_args(argv); a.f(a)

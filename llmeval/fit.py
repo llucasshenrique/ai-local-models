@@ -300,19 +300,25 @@ def optimize(tag, min_ctx=16384, max_ctx=262144, prompt_ratio=0.75, log=print):
         if recommended_ctx == 0:
             recommended_ctx = min_ctx
 
+        hardware_safe_ctx = recommended_ctx
+        hardware_max_ctx = practical_max
+
         log("\n" + "=" * 60)
-        log(f"OPTIMIZATION COMPLETE FOR {tag}")
-        log(f"  Maximum Practical Context: {practical_max} tokens")
-        log(f"  Boundary Violation Context: {viol_high} tokens")
-        log(f"  Recommended Production Context: {recommended_ctx} tokens (with ~15% headroom)")
+        log(f"HARDWARE CONTEXT FEASIBILITY COMPLETE FOR {tag}")
+        log(f"  Maximum Hardware-Feasible Context: {hardware_max_ctx} tokens")
+        log(f"  First Boundary Violation Context: {viol_high} tokens")
+        log(f"  Hardware-Safe Context (Feasibility Envelope): {hardware_safe_ctx} tokens (~15% safety headroom)")
+        log("  NOTE: Physical feasibility != model coding quality. Determine quality-optimal context via benchmark evaluation.")
         log("=" * 60 + "\n")
 
-        # Record optimal result in FIT store
+        # Record result in FIT store
         best_trial = next((tr for tr in reversed(trials) if tr.get("num_ctx") == practical_max and tr.get("status") == "SUCCESS"), t_base)
         fit_rec = {
             "model": tag,
             "num_ctx": practical_max,
             "recommended_ctx": recommended_ctx,
+            "hardware_safe_ctx": hardware_safe_ctx,
+            "hardware_max_ctx": hardware_max_ctx,
             "boundary_ctx": viol_high,
             "tok_s": best_trial.get("gen_tok_s"),
             "prompt_tok_s": best_trial.get("prompt_tok_s"),
@@ -321,6 +327,7 @@ def optimize(tag, min_ctx=16384, max_ctx=262144, prompt_ratio=0.75, log=print):
                 "gpu_pct": best_trial.get("gpu_pct"),
                 "peak_vram_mib": best_trial.get("peak_gpu_mib")
             },
+            "feasibility_only": True,
             "optimized": True
         }
         store.append(fit_rec, FIT)
@@ -330,6 +337,8 @@ def optimize(tag, min_ctx=16384, max_ctx=262144, prompt_ratio=0.75, log=print):
             "max_practical_ctx": practical_max,
             "first_violation_ctx": viol_high,
             "recommended_ctx": recommended_ctx,
+            "hardware_safe_ctx": hardware_safe_ctx,
+            "hardware_max_ctx": hardware_max_ctx,
             "best_trial": best_trial,
             "trials": trials
         }

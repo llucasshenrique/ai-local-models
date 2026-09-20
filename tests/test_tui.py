@@ -44,7 +44,7 @@ class TuiTest(unittest.TestCase):
 
     def test_keyboard_tabs_arrows_and_prompt(self):
         s = self.s
-        for k in (b"3", b"5", b"s", b"6", b"1"): s.send(k, 1.5 if k == b"s" else 0.6)
+        for k in (b"3", b"5", b"s", b"6", b"7", b"1"): s.send(k, 1.5 if k == b"s" else 0.6)
         s.send(b"4", 1.0); s.send(DOWN); s.send(b"\r", 1.5)                 # arrow down to bbb:1b, Enter adds it
         self.assertIn('tag = "bbb:1b"', self.conf())
         for chunk in (b"n", b"zzz:1b\r", b"ornith:9b-q4_K_M\r", b"8192\r"): s.send(chunk)
@@ -57,19 +57,24 @@ class TuiTest(unittest.TestCase):
         if b"type DELETE" in s.buf: s.send(b"no\r", 1.0)
         s.send(RIGHT); s.send(LEFT); s.send(UP)                             # tab/arrow keys must not crash
         t = s.text()
-        for needle in ("Harness", "Context fit", "Installed ollama models", "OK   01-add-function", "added: bbb:1b"): self.assertIn(needle, t, needle)
+        for needle in ("Harness", "Context fit", "Installed ollama models", "OK   01-add-function", "added: bbb:1b", "RSI", "max_quality", "fastest", "pareto"): self.assertIn(needle, t, needle)
         self.assertTrue("cancelled: nothing deleted" in t or "nothing to clean" in t)
         self.assertEqual(s.quit(), 0)
 
     def test_mouse_tabs_buttons_rows_and_wheel(self):
         s = self.s; spans = tui.tab_spans()
+        s.click(spans[6][0] + 2, 0, 1.0)                                    # click the "7 Loop" tab
+        self.assertIn("[7]Loop", s.text())
         s.click(spans[3][0] + 2, 0, 1.0)                                    # click the "4 Models" tab
         self.assertIn("[4]Models", s.text())
         y0 = 1 + tui.MODELS_HEADER                                          # first model row
         s.click(10, y0 + 2); s.click(10, y0 + 2, 1.5)                       # select ccc:1b, click again to add
         self.assertIn('tag = "ccc:1b"', self.conf())
         s.click(spans[4][0] + 2, 0, 1.0)                                    # "5 Setup" tab
-        s.click(3, ROWS - 2, 2.0)                                           # the "Selfcheck (s)" button
+        s.click(3, ROWS - 2, 0.5)                                           # the "Selfcheck (s)" button
+        for _ in range(50):
+            if "OK   01-add-function" in s.text(): break
+            s.pump(0.2)
         self.assertIn("OK   01-add-function", s.text())
         s.send(b"\x1b[<64;5;10M"); s.send(b"\x1b[<65;5;10M")               # wheel up / down
         s.click(spans[0][0] + 2, 0, 1.0)                                    # back to Results

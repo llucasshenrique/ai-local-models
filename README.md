@@ -54,10 +54,13 @@ python3 -m llmeval run --family granite4.1                  # only that family
 make fit && make families                                   # add VRAM/tok/s, then see the recommendation
 ```
 
-Recommendation rule (`llmeval/families.py`): among variants that fit fully on the GPU, take the best pass rate, then pick the
-**smallest** variant (parameters, then VRAM) within 5 points of it, ties by speed. The report and the TUI Results tab show it.
+Recommendation rule (`llmeval/families.py` & `llmeval/pareto.py`): computes the true **Pareto frontier** across quality (pass rate), latency (wall time), model size, and failure count. By default under the `"balanced"` policy, it recommends the smallest variant within tolerance of the top pass rate among GPU-fitting candidates, tie-breaking by speed. Alternative policies (`--policy max_quality`, `--policy fastest`, `--policy pareto`) are also supported.
 
-## Context optimization: empirical search without LLM dependence
+## Context evaluation: physical feasibility vs. quality optimization
+
+llmeval explicitly separates **physical runtime feasibility** from **quality-optimal context**:
+1. `llmeval fit --optimize`: determines the physical hardware boundary (VRAM limits, zero swap thrashing, 100% GPU offload). This establishes the safe context envelope.
+2. `llmeval run --ctx-sweep "16384,32768,65536"`: experimentally measures model coding pass rate, latency, and tool calls across context sizes to detect regressions and determine the quality-optimal context size.
 
 Instead of guessing context limits from model metadata or requiring an LLM to orchestrate measurements, `llmeval fit --optimize` executes an autonomous empirical loop:
 

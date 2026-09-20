@@ -9,6 +9,7 @@ quants = ["q4_K_M", "q6_K", "q8_0"]     # tag pattern defaults to "{name}:{size}
 # pattern = "{name}:{size}-{quant}"; as_is = true     # as_is: test the tags untouched instead of tuned "<name>-agent:<size>-<quant>" copies
 """
 import re
+from . import pareto
 
 SIZE = re.compile(r"(\d+(?:\.\d+)?)b\b", re.I)
 QUANT = re.compile(r"\b(q\d+(?:_[a-z0-9]+)*|bf16|fp16|f16)\b", re.I)
@@ -38,16 +39,36 @@ def expand(fam, defaults=None):
         out.append(m)
     return out
 
-def recommend(rows, tolerance=0.05):
-    """rows: [{tag,size,quant,rate,tok_s,size_gb,gpu_pct}] for one family (any may be None).
-    Rule: among variants that fit fully on the GPU (or whose fit is unknown), find the best pass rate; recommend the
-    smallest (params, then VRAM) variant within `tolerance` of it, tie-break by speed. Explains itself in `why`."""
+def recommend(rows, tolerance=0.05, policy="balanced"):
+    """
+    Computes true Pareto frontier and applies configurable recommendation policy.
+    Separates Pareto frontier computation from policy selection.
+    """
     have = [r for r in rows if r.get("rate") is not None]
     if not have: return None, "no results yet"
     fits = [r for r in have if r.get("gpu_pct") in (None, 100)]
     pool = fits or have
-    top = max(r["rate"] for r in pool)
-    ok = [r for r in pool if r["rate"] >= top - tolerance]
-    pick = sorted(ok, key=lambda r: (params_b(r.get("size")) or 99, r.get("size_gb") or 99, -(r.get("tok_s") or 0)))[0]
+
+    # Augment with normalized size attribute if size_gb missing
+    norm_pool = []
+    for r in pool:
+        nr = dict(r)
+        if nr.get("size_gb") is None and nr.get("size"):
+            nr["size_gb"] = params_b(nr["size"])
+        norm_pool.append(nr)
+
+    # Compute Pareto frontier over quality (rate: max) and resource usage (size_gb: min, wall: min)
+    frontier = pareto.compute_pareto_frontier(norm_pool, objectives={"rate": "max", "size_gb": "min", "wall": "min"})
+
+    # Apply policy over the frontier candidates
+    top = max(r["rate"] for r in norm_pool)
+    ok = [r for r in frontier if r["rate"] >= top - tolerance]
+    if not ok:
+        ok = [r for r in norm_pool if r["rate"] >= top - tolerance]
+
+    pick = sorted(ok, key=lambda r: (params_b(r.get("size")) or r.get("size_gb") or 99, r.get("size_gb") or 99, -(r.get("tok_s") or 0)))[0]
+
+    # Map back to original row dict
+    original_pick = next((r for r in rows if r.get("tag") == pick.get("tag")), pick)
     why = f'best pass rate {100 * top:.0f}%; smallest variant within {int(100 * tolerance)} points' + ("" if fits else "; NOTE none fit fully on the GPU")
-    return pick, why
+    return original_pick, why

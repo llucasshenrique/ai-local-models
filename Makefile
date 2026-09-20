@@ -4,7 +4,7 @@ PY     ?= python3
 EVAL   := $(PY) -m llmeval -c $(CONFIG)
 DEMO   := /tmp/llmeval-demo
 
-.PHONY: help add-family backup families advise models add test tui tui-demo list selfcheck prepare run fit fit-opt apply-ctx report tune clean-demo
+.PHONY: help add-family backup families advise models add test tui tui-demo list selfcheck prepare run fit fit-opt apply-ctx report tune loop clean-demo
 
 help:  ## show this help
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | column -t -s "$$(printf '\t')"
@@ -67,6 +67,9 @@ report:  ## markdown ranking of all results
 tune:  ## self-improvement search: make tune MODEL=ornith-agent:9b
 	@test -n "$(MODEL)" || { echo "usage: make tune MODEL=<tag with a base in the config>"; exit 2; }
 	$(EVAL) tune $(MODEL)
+
+loop:  ## run autonomous self-improving loop: make loop [FAMILY=granite4.1] [CYCLES=3] [POLICY=balanced]
+	$(EVAL) loop $(if $(FAMILY),$(FAMILY)) $(if $(CTX),--ctx $(CTX)) $(if $(CYCLES),--cycles $(CYCLES)) $(if $(POLICY),--policy $(POLICY))
 
 clean-demo:  ## remove the demo data
 	rm -rf $(DEMO)
