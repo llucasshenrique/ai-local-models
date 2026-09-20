@@ -36,3 +36,12 @@ def add(path, tags, base=None, ctx=None, pull=False, log=print):
     if blocks: open(path, "a").write("".join(b for _, b in blocks))
     log("added: " + (", ".join(t for t, _ in blocks) if blocks else "nothing"))
     return [t for t, _ in blocks]
+
+
+def add_family(path, name, sizes, quants, ctx=None, as_is=False, log=print):
+    """Append a [[families]] block; every size x quant becomes a variant that `prepare` pulls and `run` compares."""
+    cfg = config.load(path)
+    if any(f["name"] == name for f in cfg.get("families", [])): log(f"skip {name}: family already in the config"); return False
+    q = lambda xs: "[" + ", ".join(f'"{x}"' for x in xs) + "]"
+    block = f'\n[[families]]\nname   = "{name}"\nsizes  = {q(sizes)}\nquants = {q(quants)}\n' + (f"ctx    = {ctx}\n" if ctx else "") + ("as_is  = true\n" if as_is else "")
+    open(path, "a").write(block); log(f"added family {name}: {len(sizes) * len(quants)} variants"); return True

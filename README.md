@@ -41,6 +41,30 @@ Or edit `evals/default.toml` by hand: a `[[models]]` entry with only `tag` uses 
 (and optional `[models.params]`) makes `prepare` create it with the tuned Modelfile parameters.
 Then `make run` only runs what is missing (finished trials are skipped).
 
+## Model families: choose between sizes and quantizations
+
+Describe a family once and llmeval compares every size x quantization variant, then recommends one:
+
+```
+make add-family NAME=granite4.1 SIZES=3b,8b QUANTS=q4_K_M,q6_K,q8_0 CTX=32768   # or key f in the TUI (Models tab)
+python3 -m llmeval prepare --family granite4.1 --dry-run    # what would be downloaded (nothing is pulled)
+python3 -m llmeval prepare --family granite4.1              # pull + create tuned <family>-agent:<size>-<quant> tags
+python3 -m llmeval run --family granite4.1                  # only that family
+make fit && make families                                   # add VRAM/tok/s, then see the recommendation
+```
+
+Recommendation rule (`llmeval/families.py`): among variants that fit fully on the GPU, take the best pass rate, then pick the
+**smallest** variant (parameters, then VRAM) within 5 points of it, ties by speed. The report and the TUI Results tab show it.
+
+## Advisor: use the best model to think about improvements
+
+`make advise` (TUI: Tune tab, key `a`) sends a compact digest of your results, family tables, tune history and a few failure
+traces to the best model in your results (or `[advisor] model` in the config) and saves `results/advice.md`.
+It only proposes **hypotheses**: answers are validated (known models, allowed parameters, safe ranges) and never applied.
+Test them with `python3 -m llmeval tune MODEL --from-advice`, where measurement (train + held-out tasks) decides.
+`make advise ARGS=--dry-run` shows the prompt without calling any model. Small samples fool LLMs too (the advisor once called a
+1-trial vs 3-trial difference "consistent"), which is exactly why nothing it says is trusted without a measurement.
+
 ## How it works
 
 - **Tasks are data** (`tasks/*.json`: prompt, starting files, test command, protected files, reference solution).

@@ -43,9 +43,9 @@ def run_trial(harness, model, task, rep, timeout, proxy, num_ctx, keep=False):
                 tool_calls=st.get("tool_calls"), llm_requests=st.get("llm_requests"), peak_prompt_tokens=st.get("peak_prompt_tokens"),
                 num_ctx=num_ctx, ollama=ollama.version(), digest=ollama.digest(model))
 
-def run_matrix(cfg, force=False, keep=False):
+def run_matrix(cfg, force=False, keep=False, family=None):
     """Generator of progress events; results are appended to results/runs.jsonl. Resumable: finished trials are skipped."""
-    run = cfg["run"]; models = cfg["models"]; all_tasks = T.load(run.get("tasks") or None)
+    run = cfg["run"]; models = [m for m in cfg["models"] if not family or m.get("family") == family]; all_tasks = T.load(run.get("tasks") or None)
     harnesses = [h for h in run["harnesses"] if h in REGISTRY]
     done = set() if force else store.done_keys()
     todo = [(m, h, t, r) for m in models for h in harnesses for t in all_tasks for r in range(1, run["reps"] + 1)
@@ -64,7 +64,8 @@ def run_matrix(cfg, force=False, keep=False):
                     num_ctx = m.get("num_ctx", 16384)
                     REGISTRY[h].prepare(tag, num_ctx)
                     yield {"type": "start", "harness": h, "model": tag, "task": t["id"], "rep": r, "n": n + 1}
-                    rec = store.append(run_trial(h, tag, t, r, run.get("timeout", 180), proxy, num_ctx, keep))
+                    meta = {k: m[k] for k in ("family", "size", "quant") if m.get(k)}
+                    rec = store.append({**run_trial(h, tag, t, r, run.get("timeout", 180), proxy, num_ctx, keep), **meta})
                     n += 1; yield {"type": "trial", **rec, "n": n}
                 ollama.stop(tag)
     finally:

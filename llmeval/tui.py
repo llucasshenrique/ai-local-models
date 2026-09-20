@@ -1,11 +1,11 @@
 """Terminal UI (stdlib curses). Tabs: 1 Results  2 Run  3 Context fit  4 Models  5 Setup  6 Tune.
 Mouse: click tabs, buttons and model rows (click a selected row again to add it); wheel scrolls.
 Keys: 1-6 or left/right switch tab | up/down/PgUp/PgDn scroll | r start run (tab 2) | m measure fit (tab 3)
-      tab 4: up/down select, Enter add the selected installed model, n new model (tag / base / ctx), R refresh
-      tab 5: s selfcheck, p prepare | tab 6: t tune the first model with a `base` | x stop after the current trial | q quit.
+      tab 4: up/down select, Enter add the selected installed model, n new model, f new family, R refresh
+      tab 5: s selfcheck, p prepare | tab 6: t tune the first model with a `base`, a ask the advisor for ideas | x stop after the current trial | q quit.
 Long jobs run in one worker thread; the GPU lock keeps them serial and the UI never loads a model itself."""
 import collections, curses, threading, time
-from . import config, fit as fitmod, models as modelmgmt, ollama, report, runner, store, tasks as T
+from . import advisor, config, fit as fitmod, models as modelmgmt, ollama, report, runner, store, tasks as T
 from .harnesses import REGISTRY
 
 TABS = ["Results", "Run", "Context fit", "Models", "Setup", "Tune"]
@@ -21,6 +21,9 @@ def results_lines():
     out += ["", "Pass count per task", "-" * 78, " " * 37 + " ".join(t[:2] for t in tasks)]
     for (h, m), d in sorted(pt.items()):
         out.append(f"{h:9} {m[:26]:26} " + " ".join(f"{sum(d[t])}/{len(d[t])}" if t in d else " - " for t in tasks))
+    for name, rows, pick, why in report.family_table():
+        out += ["", f"Family {name}: recommended {pick['tag'] if pick else '-'} ({why})", "-" * 78]
+        out += [f'{"*" if pick and r["tag"] == pick["tag"] else " "} {r["tag"][:34]:34} {str(r["size"] or "-"):>5} {str(r["quant"] or "-"):>7} {100 * r["rate"]:>4.0f}% n={r["n"]:<3} {r["tok_s"] or "-"} tok/s {r["size_gb"] or "-"} GB {r["gpu_pct"] or "-"}% GPU' for r in sorted(rows, key=lambda r: (r["size"] or "", r["quant"] or ""))]
     return out
 
 def fit_lines():
@@ -40,7 +43,7 @@ def models_lines(rows, sel):
     if rows is None: return ["ollama is not reachable, so installed models cannot be listed."]
     out = ["Installed ollama models  ([x] = in the config, tested by `run`)", f'{"":3}{"":4}{"Model":38} {"GB":>5}', "-" * 60]
     out += [f'{">" if i == sel else " "}  [{"x" if inc else " "}] {tag[:36]:36} {gb:>5}' for i, (tag, gb, inc) in enumerate(rows)]
-    return out + ["", "Enter: add selected   n: new model (pull or build from a base)   R: refresh"]
+    return out + ["", "Enter: add selected   n: new model (pull or build from a base)   f: new family (sizes x quantizations)   R: refresh"]
 
 def setup_lines(cfg):
     out = ["Harnesses", "-" * 60]
@@ -97,6 +100,19 @@ def job_add(path, cfg, tags, base=None, ctx=None, pull=False):
         cfg.clear(); cfg.update(config.load(path))
     return fn
 
+def job_advise(cfg):
+    def fn(w):
+        out = advisor.advise(cfg, log=w.log.append)
+        a = out["advice"]; w.log.append("ANALYSIS: " + a["analysis"])
+        w.log.extend(f'TRY {e["model"]} {e["changes"]}: {e["why"]}' for e in a["experiments"])
+        w.log.extend("IDEA: " + i for i in a["ideas"]); w.log.extend("DROPPED: " + d for d in out["dropped"])
+    return fn
+
+def job_family(path, cfg, name, sizes, quants, ctx):
+    def fn(w):
+        if modelmgmt.add_family(path, name, sizes, quants, ctx, log=w.log.append): cfg.clear(); cfg.update(config.load(path))
+    return fn
+
 def job_tune(cfg):
     def fn(w):
         from . import tune
@@ -110,8 +126,8 @@ def job_tune(cfg):
 MODELS_HEADER = 3                      # lines above the first model row in models_lines()
 BUTTONS = {                            # tab index -> [(label, key it triggers)]
     1: [("Run (r)", "r"), ("Stop (x)", "x")], 2: [("Measure fit (m)", "m")],
-    3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("Refresh (R)", "R")],
-    4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p")], 5: [("Tune (t)", "t"), ("Stop (x)", "x")]}
+    3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("New family (f)", "f"), ("Refresh (R)", "R")],
+    4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p")], 5: [("Tune (t)", "t"), ("Advise (a)", "a"), ("Stop (x)", "x")]}
 
 def tab_spans():
     """[(x0, x1)] of each tab label in the title bar; shared by drawing and click handling."""
@@ -169,6 +185,14 @@ def loop(scr, cfg, w, path):
                 ctx = prompt(scr, "num_ctx (empty = default)") if base else None
                 if base is not None:
                     w.start("add model", job_add(path, cfg, [tag], base or None, int(ctx) if ctx and ctx.isdigit() else None, pull=not base)); st["rows_at"] = 0
+        elif k == ord("f") and tab == 3:
+            name = prompt(scr, "family name (ollama library name, e.g. granite4.1)")
+            sizes = prompt(scr, "sizes, comma separated (e.g. 3b,8b)") if name else None
+            quants = prompt(scr, "quantizations, comma separated (e.g. q4_K_M,q6_K,q8_0)") if sizes else None
+            ctx = prompt(scr, "num_ctx (empty = default)") if quants else None
+            if quants:
+                w.start("add family", job_family(path, cfg, name, [x.strip() for x in sizes.split(",") if x.strip()], [x.strip() for x in quants.split(",") if x.strip()], int(ctx) if ctx and ctx.isdigit() else None))
+        elif k == ord("a") and tab == 5: w.start("advise", job_advise(cfg))
         elif k == ord("s") and tab == 4: w.start("selfcheck", job_setup(cfg, "selfcheck"))
         elif k == ord("p") and tab == 4: w.start("prepare", job_setup(cfg, "prepare"))
         elif k == ord("t") and tab == 5: w.start("tune", job_tune(cfg))

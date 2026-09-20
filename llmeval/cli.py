@@ -18,15 +18,33 @@ def cmd_selfcheck(a):
         ok = T.selfcheck(t); bad += not ok; print(("OK     " if ok else "BROKEN "), t["id"])
     sys.exit(1 if bad else 0)
 
-def cmd_prepare(a): config.prepare(config.load(a.config))
+def cmd_prepare(a): config.prepare(config.load(a.config), family=a.family, dry_run=a.dry_run)
 
 def cmd_run(a):
-    for ev in runner.run_matrix(config.load(a.config), force=a.force, keep=a.keep):
+    for ev in runner.run_matrix(config.load(a.config), force=a.force, keep=a.keep, family=a.family):
         t = ev["type"]
         if t == "plan": print(f"{ev['total']} trials to run ({ev['skipped']} already done)")
         elif t == "model": print(f"== {ev['model']}")
         elif t == "start": print(f"[{ev['n']}] {ev['harness']:9} {ev['task']} rep {ev['rep']} ...", end=" ", flush=True)
         elif t == "trial": print(("PASS" if ev["done"] else "FAIL") + f" {ev['wall_s']}s" + (" LOOP" if ev.get("loop") else "") + (" TIMEOUT" if ev["timeout"] else "") + (" TAMPERED" if ev["tampered"] else ""))
+
+def cmd_families(a):
+    """Configured families, their variants and whether each is ready; then the recommendation from existing results."""
+    cfg = config.load(a.config)
+    for m in cfg["models"]:
+        if m.get("family"): print(f"{m['family']:14} {m['size'] or '-':6} {m['quant'] or '-':8} {m['tag']:34} {'ready' if ollama.has(m['tag']) else 'not built'}")
+    from . import report
+    for name, rows, pick, why in report.family_table(): print(f"\n{name}: recommended {pick['tag'] if pick else '-'} ({why})")
+
+def cmd_add_family(a):
+    from . import models
+    models.add_family(a.config, a.name, a.sizes.split(","), a.quants.split(","), a.ctx, a.as_is)
+
+def cmd_advise(a):
+    from . import advisor
+    out = advisor.advise(config.load(a.config), a.model, a.think, a.dry_run)
+    if a.dry_run: print(f"advisor would be: {out['advisor']} ({out['why']})\n\n{out['prompt']}"); return
+    print(open(os.path.join(store.RESULTS, "advice.md")).read())
 
 def cmd_fit(a):
     cfg = config.load(a.config)
@@ -43,7 +61,12 @@ def cmd_tune(a):
     cfg = config.load(a.config); model = next(m for m in cfg["models"] if m["tag"] == a.model)
     if not model.get("base"): raise SystemExit("tune needs a model with a `base` in the config")
     holdout = cfg.get("tune", {}).get("holdout", ["05-bug-across-files"])
-    for ev in tune.tune(model, holdout, a.harness, a.reps, cfg["run"]["timeout"]):
+    space = None
+    if a.from_advice:
+        from . import advisor
+        space = advisor.space_from_advice(a.model)
+        if not space: raise SystemExit("no saved advice for this model: run `llmeval advise` first")
+    for ev in tune.tune(model, holdout, a.harness, a.reps, cfg["run"]["timeout"], space=space):
         print(json.dumps(ev))
 
 def cmd_import_legacy(a):
@@ -114,11 +137,19 @@ def main(argv=None):
     sub.add_parser("list").set_defaults(f=cmd_list)
     sub.add_parser("selfcheck", help="prove every task is solvable (no GPU)").set_defaults(f=cmd_selfcheck)
     sub.add_parser("prepare", help="pull base models and create tuned tags").set_defaults(f=cmd_prepare)
-    r = sub.add_parser("run"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
+    sub.choices["prepare"].add_argument("--family"); sub.choices["prepare"].add_argument("--dry-run", action="store_true")
+    r = sub.add_parser("run"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
     f = sub.add_parser("fit"); f.add_argument("--ctx", default="16384,32768,49152,65536"); f.set_defaults(f=cmd_fit)
     o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
-    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.set_defaults(f=cmd_tune)
+    t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
     sub.add_parser("import-legacy").set_defaults(f=cmd_import_legacy)
+    ad = sub.add_parser("advise", help="ask the best local model to analyse results and propose experiments")
+    ad.add_argument("--model", help="advisor tag (default: [advisor] model in the config, else the best model in your results)")
+    ad.add_argument("--think", action="store_true", help="enable thinking mode if the model supports it"); ad.add_argument("--dry-run", action="store_true", help="show the prompt, call nothing"); ad.set_defaults(f=cmd_advise)
+    sub.add_parser("families", help="configured families, variant status and the current recommendation").set_defaults(f=cmd_families)
+    af = sub.add_parser("add-family", help="add a model family: every size x quantization becomes a variant"); af.add_argument("name")
+    af.add_argument("--sizes", required=True, help="comma list, e.g. 3b,8b"); af.add_argument("--quants", required=True, help="comma list, e.g. q4_K_M,q6_K,q8_0")
+    af.add_argument("--ctx", type=int); af.add_argument("--as-is", action="store_true"); af.set_defaults(f=cmd_add_family)
     sub.add_parser("models", help="installed ollama models and whether they are in the config").set_defaults(f=cmd_models)
     d = sub.add_parser("add", help="add models to the config (installed tags as-is, or built from --base)")
     d.add_argument("tags", nargs="+"); d.add_argument("--base"); d.add_argument("--ctx", type=int); d.add_argument("--pull", action="store_true"); d.set_defaults(f=cmd_add)

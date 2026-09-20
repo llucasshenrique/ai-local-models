@@ -32,3 +32,15 @@ repeat_penalty = 1.1
 
 [[models]]                        # no `base`: an existing tag used as-is
 tag = "granite4.1:8b"
+
+# A family lets llmeval compare sizes and quantizations and recommend one (see `make families`, README).
+# `prepare --family NAME --dry-run` shows what would be downloaded first.
+# [[families]]
+# name   = "granite4.1"
+# sizes  = ["3b", "8b"]
+# quants = ["q4_K_M", "q6_K", "q8_0"]
+# ctx    = 32768
+
+# The advisor is the model that analyses results and proposes experiments (`make advise`). "auto" = best model in your results.
+# [advisor]
+# model = "auto"

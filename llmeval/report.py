@@ -1,10 +1,10 @@
 """Markdown report from results/runs.jsonl (+ results/fit.jsonl). Ranking = pass rate, then median wall time."""
 import collections, statistics as st
-from . import store
+from . import families as fam, store
 from .fit import FIT
 
 def _md(head, rows):
-    return "| " + " | ".join(head) + " |\n|" + "---|" * len(head) + "\n" + "\n".join("| " + " | ".join(str(c) for c in r) + " |" for r in rows) + "\n"
+    return "| " + " | ".join(head) + " |\n|" + "---|" * len(head) + "\n" + "\n".join("| " + " | ".join("-" if c is None else str(c) for c in r) + " |" for r in rows) + "\n"
 
 def summary(rows=None):
     g = collections.defaultdict(list)
@@ -23,6 +23,25 @@ def per_task(rows=None):
     for r in (rows if rows is not None else store.rows()): g[(r["harness"], r["model"])][r["task"]].append(int(r["done"]))
     return g
 
+def family_table(tol=0.05):
+    """[(family, [variant rows], pick, why)] joining pass rate (all harnesses pooled) with the latest context-fit data."""
+    runs = collections.defaultdict(list)
+    for r in store.rows():
+        if r.get("family"): runs[(r["family"], r["model"])].append(r)
+    fit = {}
+    for f in store.rows(FIT): fit[f["model"], f["num_ctx"]] = f
+    out = []
+    for name in sorted({k[0] for k in runs}):
+        rows = []
+        for (fname, tag), v in sorted(runs.items()):
+            if fname != name: continue
+            ctx = v[0].get("num_ctx"); f = fit.get((tag, ctx)) or {}
+            rows.append(dict(tag=tag, size=v[0].get("size"), quant=v[0].get("quant"), n=len(v), rate=sum(r["done"] for r in v) / len(v),
+                             wall=st.median(r["wall_s"] for r in v), tok_s=f.get("tok_s"), size_gb=(f.get("fit") or {}).get("size_gb"),
+                             gpu_pct=(f.get("fit") or {}).get("gpu_pct"), ctx=ctx))
+        pick, why = fam.recommend(rows, tol); out.append((name, rows, pick, why))
+    return out
+
 def render():
     s = summary(); out = ["# llmeval report\n"]
     if s:
@@ -32,6 +51,12 @@ def render():
         pt = per_task(); tasks = sorted({t for d in pt.values() for t in d})
         out.append("## Pass count per task\n")
         out.append(_md(["Harness", "Model"] + tasks, [(h, m, *[f"{sum(d[t])}/{len(d[t])}" if t in d else "-" for t in tasks]) for (h, m), d in sorted(pt.items())]))
+    for name, rows, pick, why in family_table():
+        out.append(f"## Family: {name}\n")
+        out.append(_md(["Variant", "Params", "Quant", "Pass", "Median wall (s)", "tok/s", "VRAM (GB)", "GPU %", "ctx"],
+            [(("**" + r["tag"] + "**") if pick and r["tag"] == pick["tag"] else r["tag"], r["size"], r["quant"], f'{100 * r["rate"]:.0f}% (n={r["n"]})',
+              round(r["wall"], 1), r["tok_s"], r["size_gb"], r["gpu_pct"], r["ctx"]) for r in sorted(rows, key=lambda r: (fam.params_b(r["size"]) or 0, r["quant"] or ""))]))
+        out.append(f"Recommended: **{pick['tag'] if pick else '-'}** ({why})\n")
     fit = store.rows(FIT)
     if fit:
         latest = {(r["model"], r["num_ctx"]): r for r in fit}; models = sorted({k[0] for k in latest}); ctxs = sorted({k[1] for k in latest})

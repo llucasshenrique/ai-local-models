@@ -39,7 +39,8 @@ class TuiTest(unittest.TestCase):
         subprocess.run([sys.executable, "-m", "llmeval", "demo-data"], env=self.env, cwd=ROOT, check=True, capture_output=True)
         self.s = Session(self.env, self.cfg)
 
-    def conf(self): return open(self.cfg).read()
+    def conf(self):
+        with open(self.cfg) as f: return f.read()
 
     def test_keyboard_tabs_arrows_and_prompt(self):
         s = self.s
@@ -49,6 +50,9 @@ class TuiTest(unittest.TestCase):
         for chunk in (b"n", b"zzz:1b\r", b"ornith:9b-q4_K_M\r", b"8192\r"): s.send(chunk)
         s.pump(2.0)
         self.assertIn('tag  = "zzz:1b"', self.conf()); self.assertIn("num_ctx = 8192", self.conf())
+        for chunk in (b"f", b"granite4.1\r", b"3b,8b\r", b"q4_K_M,q8_0\r", b"\r"): s.send(chunk)      # new family through the prompts
+        s.pump(1.5)
+        self.assertIn('name   = "granite4.1"', self.conf()); self.assertIn('sizes  = ["3b", "8b"]', self.conf())
         s.send(RIGHT); s.send(LEFT); s.send(UP)                             # tab/arrow keys must not crash
         t = s.text()
         for needle in ("Harness", "Context fit", "Installed ollama models", "OK   01-add-function", "added: bbb:1b"): self.assertIn(needle, t, needle)
