@@ -65,7 +65,12 @@ def main(bases):
         print(f"=== {base} -> {name} ===", flush=True)
         if subprocess.run(["ollama", "pull", base]).returncode != 0:
             print("pull failed, skipping", flush=True); continue
-        subprocess.run(["ollama", "create", name, "-f", "-"], input=modelfile(base), text=True, capture_output=True)
+        mf = os.path.join(HERE, "modelfiles", "sweep", f"{name}.Modelfile")
+        os.makedirs(os.path.dirname(mf), exist_ok=True)
+        open(mf, "w").write(modelfile(base))
+        c = subprocess.run(["ollama", "create", name, "-f", mf], capture_output=True, text=True)
+        if c.returncode != 0:
+            print("create failed, skipping:", c.stderr.strip()[-200:], flush=True); continue
         register_opencode(name)
         rec = dict(base=base, tag=name)
         try:
