@@ -193,54 +193,113 @@ def tune_lines(w):
     out += list(w.log)[-10:] or ["(no tuning runs executed this session)"]
     return out
 
-def loop_lines(w, policy="balanced"):
-    done, total = w.progress
-    if w.busy:
-        return [f"RUNNING WORKFLOW: {w.busy}" + (f"  {done}/{total}" if total else ""), ""] + list(w.log)
-    
-    out = [
-        "Recursive Self-Improvement (RSI) End-to-End Workflow",
-        "-" * 60,
-        "Unified Pipeline: Discovery -> Hardware Fit -> Auto-Context -> Tune -> Pareto",
-        "",
-        "Autonomous Workflow Stages:",
-        "  [1/5] Discover: Search Ollama library & HuggingFace for family variants",
-        "  [2/5] Hardware Envelope: Probe VRAM feasibility (zero swap thrashing limit)",
-        "  [3/5] Auto-Context Discovery: Sweep candidate context sizes & automatically",
-        "        select best context size based on quality & latency curve",
-        "  [4/5] Staged Tuning: Statistical confirmation (Wilson 95% CI, Fisher exact,",
-        "        min 5 reps) on train/val splits; rejects noisy wins",
-        "  [5/5] Pareto Decision: Multi-objective selection according to active policy",
-        "",
-        "Pareto Recommendation Policies (press P to cycle active policy):",
-        "-" * 60
-    ]
-    for pol_name, desc in POLICY_TYPES:
-        mark = "[*]" if pol_name == policy else "[ ]"
-        out.append(f"  {mark} {pol_name:12}: {desc}")
+def render_pipeline_dashboard(w, cfg, policy="balanced"):
+    s = loop_state.load_state() or {}
+    family = s.get("family") or (cfg.get("families", [{}])[0].get("name") if cfg.get("families") else None) or "granite4.1"
+    curr_stage = s.get("current_stage", "discovery")
+    curr_cycle = s.get("current_cycle", 1)
+    max_cycles = s.get("max_cycles", 3)
+    status_code = s.get("status", "idle")
+    stages = s.get("stages", {})
 
-    out += [
-        "",
-        "Controls:",
-        "  L: Run Full Workflow (resumes checkpoint / auto-discovers best context)",
-        "  D: Discover & Probe Hardware Fit only",
-        "  P: Cycle Pareto Policy (balanced / max_quality / fastest / pareto)",
-        "  x: Stop current running workflow",
+    done_cnt, total_cnt = w.progress
+    progress_str = f" ({done_cnt}/{total_cnt})" if total_cnt else ""
+    if w.busy:
+        status_badge = f"RUNNING [{w.busy}]{progress_str}"
+    elif status_code == "completed":
+        status_badge = "COMPLETED"
+    elif status_code == "failed":
+        err_msg = s.get("last_error", "")
+        status_badge = f"FAILED: {err_msg[:35]}" if err_msg else "FAILED"
+    elif loop_state.has_checkpoint(family):
+        status_badge = f"CHECKPOINT SAVED (stage: {curr_stage})"
+    else:
+        status_badge = "IDLE (Ready)"
+
+    stage_order = [
+        ("discovery", "Discovery", "Search Ollama & HuggingFace libraries"),
+        ("hardware_envelope", "Hardware Fit", "Probe VRAM offload & safe context"),
+        ("context_discovery", "Auto-Context", "Evaluate coding quality vs latency curve"),
+        ("rsi_cycles", "RSI Cycles", f"Multi-cycle staged tuning ({curr_cycle}/{max_cycles})"),
+        ("pareto_decision", "Pareto Frontier", f"Multi-objective {policy.upper()} trade-off"),
     ]
-    if loop_state.has_checkpoint():
-        out += [
-            "",
-            "Cached Checkpoint:",
-            f"  {loop_state.get_checkpoint_summary()}",
-            "  (Press L to Continue, Restart Step, or Reset)"
-        ]
-    out += [
-        "",
-        "Recent Workflow Log:",
-        "-" * 60
+
+    stepper_parts = []
+    for key, short_name, _ in stage_order:
+        st_data = stages.get(key, {})
+        is_done = st_data.get("completed", False)
+        is_active = (curr_stage == key and bool(w.busy))
+        if is_done: stepper_parts.append(f"[{short_name} *]")
+        elif is_active: stepper_parts.append(f"[{short_name} >]")
+        else: stepper_parts.append(f"[{short_name} -]")
+    stepper_line = " -> ".join(stepper_parts)
+
+    out = [
+        f"AUTONOMOUS RECURSIVE SELF-IMPROVEMENT (RSI) PIPELINE | Family: {family} | Policy: {policy}",
+        f"Pipeline Status: {status_badge}",
+        "-" * 78,
+        f" Stepper: {stepper_line}",
+        "-" * 78,
     ]
-    out += list(w.log)[-10:] or ["(no workflow executed yet - press L to start)"]
+
+    for idx, (key, title, fallback_sub) in enumerate(stage_order, 1):
+        st_data = stages.get(key, {})
+        is_done = st_data.get("completed", False)
+        is_active = (curr_stage == key and bool(w.busy))
+        is_failed = (curr_stage == key and status_code == "failed" and not w.busy)
+
+        if is_done:
+            icon = "[DONE]"
+        elif is_active:
+            icon = "[BUSY]"
+        elif is_failed:
+            icon = "[FAIL]"
+        else:
+            icon = "[WAIT]"
+
+        detail = fallback_sub
+        if key == "discovery" and is_done:
+            plan = st_data.get("plan") or {}
+            chosen = plan.get("chosen") or plan.get("models") or []
+            if chosen:
+                detail = f"{len(chosen)} variants chosen ({', '.join(c.get('tag', '').split(':')[-1] for c in chosen[:2])})"
+            else:
+                detail = "Variants registered and verified"
+        elif key == "hardware_envelope" and is_done:
+            max_s = st_data.get("hardware_max_safe", 32768)
+            detail = f"100% GPU offload verified up to {max_s // 1024}k context (zero swap)"
+        elif key == "context_discovery" and is_done:
+            best_c = st_data.get("best_ctx", 32768)
+            detail = f"Optimal context discovered: {best_c // 1024}k (auto-applied to Modelfiles)"
+        elif key == "rsi_cycles":
+            hist = st_data.get("history", [])
+            winners = [h.get("winner") for h in hist if h.get("confirmed") and h.get("winner")]
+            if winners:
+                detail = f"{len(hist)} cycles done; confirmed: {', '.join(winners[-2:])}"
+            elif is_done:
+                detail = f"Cycles finished: System converged without regression"
+            elif is_active:
+                detail = f"Cycle {curr_cycle}/{max_cycles}: Hypothesis testing & Fisher exact validation"
+        elif key == "pareto_decision" and is_done:
+            w_tag = st_data.get("winner") or "Evaluated"
+            detail = f"Final selection under policy '{policy}': {w_tag}"
+
+        out.append(f"  {icon} Phase {idx}: {title:<17} | {detail}")
+
+    pol_boxes = "  ".join(f"[{'*' if p == policy else ' '}] {p}" for p in ["balanced", "max_quality", "fastest", "pareto"])
+    out += [
+        "-" * 78,
+        f"Policy: {pol_boxes} (P to cycle)",
+        "Controls: [L] Run/Resume  [R] Restart Step  [S] Reset  [P] Policy  [x] Stop",
+        "-" * 78,
+    ]
     return out
+
+def loop_lines(w, cfg=None, policy="balanced", max_log_rows=12):
+    dash = render_pipeline_dashboard(w, cfg or {}, policy)
+    logs = list(w.log)
+    visible_logs = logs[-max_log_rows:] if logs else ["(no workflow output yet - press L to run or resume)"]
+    return dash + ["Recent Execution Log:"] + visible_logs
 
 # ---- worker ----
 class Worker:
@@ -648,7 +707,7 @@ BUTTONS = {                            # tab index -> [(label, key it triggers)]
     3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("New family (f)", "f"), ("Discover (d)", "d"), ("Apply discovered (y)", "y"), ("Clean losers (c)", "c"), ("Refresh (R)", "R")],
     4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p"), ("Integrity (i)", "i")],
     5: [("Tune (t)", "t"), ("Tune family (F)", "F"), ("Advise (a)", "a"), ("Compare (C)", "C"), ("Stop (x)", "x")],
-    6: [("Run Workflow (L)", "L"), ("Discover & Fit (D)", "D"), ("Policy (P)", "P"), ("Stop (x)", "x")]
+    6: [("Run/Resume (L)", "L"), ("Restart Step (R)", "R"), ("Reset (S)", "S"), ("Policy (P)", "P"), ("Discover & Fit (D)", "D"), ("Stop (x)", "x")]
 }
 
 def tab_spans():
@@ -768,6 +827,19 @@ def loop(scr, cfg, w, path):
                         elif ai.startswith("s"): loop_action = "reset_all"
                         else: loop_action = "resume"
                 w.start(f"workflow {chosen_fam}", job_workflow(path, cfg, chosen_fam, target_ctx=None, confirm_reps=5, policy=POLICIES[st["policy_idx"]], loop_action=loop_action))
+        elif (k == ord("R") or k == ord("r")) and tab == 6:
+            s = loop_state.load_state() or {}
+            fam_name = s.get("family") or (cfg.get("families", [{}])[0].get("name") if cfg.get("families") else "granite4.1")
+            curr_step = s.get("current_stage", "current step")
+            ans = prompt(scr, f"Restart stage '{curr_step}' for family '{fam_name}'? (Y/n)", "y")
+            if ans and ans.strip().lower().startswith("y"):
+                w.start(f"workflow {fam_name}", job_workflow(path, cfg, fam_name, target_ctx=None, confirm_reps=5, policy=POLICIES[st["policy_idx"]], loop_action="restart_step"))
+        elif (k == ord("S") or k == ord("s")) and tab == 6:
+            ans = prompt(scr, "Reset all checkpoints and start fresh loop? (y/N)", "n")
+            if ans and ans.strip().lower().startswith("y"):
+                loop_state.clear_state()
+                default_fam = (cfg.get("families", [{}])[0].get("name") if cfg.get("families") else None) or "granite4.1"
+                w.start(f"workflow {default_fam}", job_workflow(path, cfg, default_fam, target_ctx=None, confirm_reps=5, policy=POLICIES[st["policy_idx"]], loop_action="reset_all"))
         elif (k == ord("D") or k == ord("d")) and tab == 6:
             name = prompt(scr, "family name to discover and fit (e.g. granite4.1)")
             if name:
@@ -813,12 +885,14 @@ def loop(scr, cfg, w, path):
         elif tab == 2: lines = fit_lines()
         elif tab == 3: lines = models_lines(st["rows"], st["sel"]) + [""] + list(w.log)[-6:]
         elif tab == 4: lines = setup_lines(cfg) + list(w.log)[-8:]
-        elif tab == 5: lines = tune_lines(w)
-        elif tab == 6: lines = loop_lines(w, policy=curr_policy)
+        elif tab == 6:
+            lines = loop_lines(w, cfg, policy=curr_policy, max_log_rows=max(4, h - 19))
+            st["off"] = 0
         else: lines = list(w.log)
 
-        if (tab == 4 or tab == 6) and w.busy: st["off"] = max(0, len(lines) - (h - 3))
-        st["off"] = max(0, min(st["off"], max(0, len(lines) - (h - 3))))
+        if tab == 4 and w.busy: st["off"] = max(0, len(lines) - (h - 3))
+        if tab != 6:
+            st["off"] = max(0, min(st["off"], max(0, len(lines) - (h - 3))))
         for i, l in enumerate(lines[st["off"]:st["off"] + h - 3]): scr.addnstr(1 + i, 1, l, wd - 2)
         
         # Bottom button bar
