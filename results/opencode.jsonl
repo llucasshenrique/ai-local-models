@@ -1,7 +1,8 @@
-{"harness": "opencode", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 42.0, "tool_calls": 2, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 59.0, "tool_calls": 8, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 39.2, "tool_calls": 4, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "gemma4:12b", "task": 1, "done": false, "wall_s": 76.7, "tool_calls": 1, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "gemma4:12b", "task": 2, "done": false, "wall_s": 70.9, "tool_calls": 6, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "gemma4:12b", "task": 3, "done": false, "wall_s": 91.6, "tool_calls": 7, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "qwen3-agent:14b", "task": 1, "done": false, "wall_s": 14.1, "tool_calls": 0, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 151.9, "tool_calls": 8, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 60.2, "tool_calls": 4, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "gemma4:12b", "task": 1, "done": false, "wall_s": 49.0, "tool_calls": 1, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "gemma4:12b", "task": 2, "done": false, "wall_s": 97.9, "tool_calls": 8, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "gemma4:12b", "task": 3, "done": false, "wall_s": 97.6, "tool_calls": 9, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "qwen3-agent:14b", "task": 1, "done": false, "wall_s": 180.2, "tool_calls": 0, "loop": false, "timeout": true}
+{"harness": "opencode", "model": "qwen3-agent:14b", "task": 2, "done": false, "wall_s": 180.1, "tool_calls": 2, "loop": false, "timeout": true}
+{"harness": "opencode", "model": "qwen3-agent:14b", "task": 3, "done": false, "wall_s": 180.2, "tool_calls": 1, "loop": false, "timeout": true}
