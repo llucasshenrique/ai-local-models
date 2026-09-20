@@ -1,0 +1,219 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/gemma4-agent:12b",
+  "small_model": "ollama/gemma4-agent:12b",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "gemma4:latest": {
+          "name": "gemma4:latest"
+        },
+        "gemma4:12b": {
+          "name": "gemma4:12b"
+        },
+        "orchestrator:latest": {
+          "name": "orchestrator:latest"
+        },
+        "qwen3:4b": {
+          "name": "qwen3:4b"
+        },
+        "qwen3:14b": {
+          "name": "qwen3:14b"
+        },
+        "gemma4-agent:12b": {
+          "name": "gemma4-agent:12b (tuned)",
+          "tool_call": true,
+          "reasoning": false,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "qwen3-agent:14b": {
+          "name": "qwen3-agent:14b (tuned)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "qwen3-agent:8b": {
+          "name": "qwen3-agent:8b (tuned)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-ornith-9b-q4-k-m": {
+          "name": "sw-ornith-9b-q4-k-m",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-ornith-9b-q8-0": {
+          "name": "sw-ornith-9b-q8-0",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-granite4-1-8b-q3-k-m": {
+          "name": "sw-granite4-1-8b-q3-k-m",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-granite4-1-8b-q4-k-m": {
+          "name": "sw-granite4-1-8b-q4-k-m",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-granite4-1-8b-q6-k": {
+          "name": "sw-granite4-1-8b-q6-k",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-granite4-1-3b-q4-k-m": {
+          "name": "sw-granite4-1-3b-q4-k-m",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-granite4-1-3b-q8-0": {
+          "name": "sw-granite4-1-3b-q8-0",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "sw-qwen3-8b-q8-0": {
+          "name": "sw-qwen3-8b-q8-0",
+          "tool_call": true,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          },
+          "options": {
+            "temperature": 0.25,
+            "top_p": 0.9,
+            "presence_penalty": 0.3,
+            "frequency_penalty": 0.1
+          }
+        },
+        "abl-gemma4-ctxonly": {
+          "name": "abl-gemma4-ctxonly",
+          "tool_call": true,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        },
+        "abl-gemma4-samponly": {
+          "name": "abl-gemma4-samponly",
+          "tool_call": true,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "micro": {
+      "description": "Small single-file, well specified code tasks with a test command",
+      "mode": "primary",
+      "maxSteps": 15,
+      "permission": {
+        "doom_loop": "deny",
+        "edit": "allow",
+        "bash": "allow"
+      }
+    }
+  },
+  "permission": {
+    "doom_loop": "deny"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "defaultModel": "ornith-agent:9b",
+  "defaultProvider": "ollama",
+  "enableInstallTelemetry": false,
+  "lastChangelogVersion": "0.86.0",
+  "quietStartup": true,
+  "terminal": {
+    "showTerminalProgress": true
+  },
+  "theme": "dark",
+  "packages": [
+    "npm:@ollama/pi-web-search"
+  ],
+  "defaultThinkingLevel": "off",
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 4096,
+    "keepRecentTokens": 8000
+  }
+}

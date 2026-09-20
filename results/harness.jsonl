@@ -21,3 +21,4 @@
 {"harness": "mini", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 33.5, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 10, "peak_prompt_tokens": 2214}
 {"harness": "pi", "model": "gemma4-agent:12b", "task": 1, "done": true, "wall_s": 27.0, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 4059}
 {"harness": "pi", "model": "gemma4-agent:12b", "task": 2, "done": true, "wall_s": 29.9, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 10, "peak_prompt_tokens": 4323}
+{"harness": "pi", "model": "gemma4-agent:12b", "task": 3, "done": true, "wall_s": 19.5, "tool_calls": 0, "loop": false, "timeout": false, "llm_requests": 6, "peak_prompt_tokens": 3999}
