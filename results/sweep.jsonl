@@ -2,10 +2,10 @@
 {"base": "granite4.1:3b-q4_K_M", "tag": "sw-granite4-1-3b-q4-k-m", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 17.0, "loops": 0}
 {"base": "granite4.1:3b-q8_0", "tag": "sw-granite4-1-3b-q8-0", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 11.3, "loops": 0}
 {"base": "ornith:9b-q4_K_M", "tag": "sw-ornith-9b-q4-k-m", "tok_s": 66.8, "fit": "5.7 GB 100% GPU", "passed": 3, "wall_s": 225.0, "loops": 0}
-{"base": "qwen3:8b-q8_0", "tag": "sw-qwen3-8b-q8-0", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 15.5, "loops": 0}
 {"base": "ornith:9b-q8_0", "tag": "sw-ornith-9b-q8-0", "tok_s": 43.9, "fit": "9.1 GB 100% GPU", "passed": 3, "wall_s": 264.6, "loops": 0}
 {"base": "granite4.1:8b-q3_K_M", "tag": "sw-granite4-1-8b-q3-k-m", "tok_s": 70.0, "fit": "7.1 GB 100% GPU", "passed": 1, "wall_s": 128.0, "loops": 0}
 {"base": "granite4.1:8b-q4_K_M", "tag": "sw-granite4-1-8b-q4-k-m", "tok_s": 71.4, "fit": "7.9 GB 100% GPU", "passed": 3, "wall_s": 141.4, "loops": 1}
 {"base": "granite4.1:8b-q6_K", "tag": "sw-granite4-1-8b-q6-k", "tok_s": 35.6, "fit": "10 GB 8%/92% CPU/GPU", "passed": 3, "wall_s": 182.9, "loops": 0}
 {"base": "granite4.1:3b-q4_K_M", "tag": "sw-granite4-1-3b-q4-k-m", "tok_s": 126.8, "fit": "3.6 GB 100% GPU", "passed": 2, "wall_s": 247.6, "loops": 0}
 {"base": "granite4.1:3b-q8_0", "tag": "sw-granite4-1-3b-q8-0", "tok_s": 60.4, "fit": "5.1 GB 100% GPU", "passed": 3, "wall_s": 113.9, "loops": 0}
+{"base": "qwen3:8b-q8_0", "tag": "sw-qwen3-8b-q8-0", "tok_s": 14.4, "fit": "11 GB 21%/79% CPU/GPU", "passed": 0, "wall_s": 470.2, "loops": 0}

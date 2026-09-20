@@ -6,7 +6,7 @@ usage: bench/smoke.py opencode MODEL [task_id ...]   e.g. smoke.py opencode gemm
 Prints one JSON line per task: done (test passes), wall seconds, tool calls, loop flag.
 Loop = the same tool name + identical arguments issued 3 times (run is killed).
 """
-import json, os, subprocess, sys, tempfile, time, threading
+import json, os, subprocess, sys, tempfile, time, threading, urllib.request
 
 TIMEOUT = 180
 TASKS = {
@@ -28,12 +28,34 @@ def setup(task):
 
 def run(harness, model, task):
     d = setup(task)
+    prompt = TASKS[task]["prompt"]
+    proxy = "http://127.0.0.1:11436"          # bench/proxy.py, records requests + peak prompt tokens
+    env = {**os.environ, "PWD": d}
     if harness == "opencode":
-        cmd = ["opencode", "run", "--format", "json", "--dir", d, "--agent", "micro", "-m", f"ollama/{model}", TASKS[task]["prompt"]]
+        cmd = ["opencode", "run", "--format", "json", "--dir", d, "--agent", "micro", "-m", f"ollama/{model}", prompt]
+    elif harness == "minimal":
+        cmd = ["python3", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "harness", "minimal_agent.py"), model, prompt]
+        env["OLLAMA_URL"] = proxy
+    elif harness == "mini":       # mini-swe-agent
+        cmd = ["mini", "-m", f"ollama_chat/{model}", "-t", prompt, "-y", "--exit-immediately"]
+        env.update(OLLAMA_API_BASE=proxy, MSWEA_COST_TRACKING="ignore_errors", MSWEA_SILENT_STARTUP="1")
+    elif harness == "aider":
+        files = [f for f in TASKS[task]["files"] if f != "test.sh"] + ([] if task != 1 else ["calc.py"])
+        cmd = ["aider", "--model", f"ollama_chat/{model}", "--message", prompt, "--yes-always", "--no-auto-commits",
+               "--no-show-model-warnings", "--no-check-update", "--no-analytics", "--test-cmd", "sh test.sh", "--auto-test"] + files
+        env["OLLAMA_API_BASE"] = proxy
+    elif harness in ("pi", "qwen", "codex", "cline"):   # via `ollama launch`, pointed at the proxy with OLLAMA_HOST
+        extra = {"pi": ["-p", prompt, "--no-session"], "qwen": ["-p", prompt, "--yolo"],
+                 "codex": ["exec", "--skip-git-repo-check", prompt], "cline": ["-y", prompt]}[harness]
+        cmd = ["ollama", "launch", harness, "--model", model, "--"] + extra
+        env["OLLAMA_HOST"] = "127.0.0.1:11436"
     else:
-        cmd = ["python3", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "harness", "minimal_agent.py"), model, TASKS[task]["prompt"]]
+        raise SystemExit(f"unknown harness {harness}")
+    if harness != "opencode":
+        try: urllib.request.urlopen(proxy + "/__reset", timeout=3)
+        except Exception: pass
     t0 = time.time()
-    p = subprocess.Popen(cmd, cwd=d, env={**os.environ, "PWD": d}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    p = subprocess.Popen(cmd, cwd=d, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     calls, seen, loop = 0, {}, False
     def watchdog():
         time.sleep(TIMEOUT)
@@ -58,7 +80,14 @@ def run(harness, model, task):
     p.wait()
     wall = round(time.time() - t0, 1)
     ok = subprocess.run("sh test.sh", shell=True, cwd=d, capture_output=True).returncode == 0
-    return dict(harness=harness, model=model, task=task, done=ok, wall_s=wall, tool_calls=calls, loop=loop, timeout=wall >= TIMEOUT - 1)
+    res = dict(harness=harness, model=model, task=task, done=ok, wall_s=wall, tool_calls=calls, loop=loop, timeout=wall >= TIMEOUT - 1)
+    if harness != "opencode":    # opencode has its own event stream; the others are measured at the proxy
+        try:
+            st = json.load(urllib.request.urlopen(proxy + "/__stats", timeout=3))
+            res.update(llm_requests=st["requests"], peak_prompt_tokens=st["peak_prompt_tokens"])
+        except Exception:
+            res.update(llm_requests=None, peak_prompt_tokens=None)
+    return res
 
 if __name__ == "__main__":
     h, m = sys.argv[1], sys.argv[2]

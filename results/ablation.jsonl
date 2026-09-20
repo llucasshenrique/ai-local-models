@@ -1,0 +1,6 @@
+{"harness": "opencode", "model": "abl-gemma4-ctxonly", "task": 1, "done": true, "wall_s": 40.5, "tool_calls": 4, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "abl-gemma4-ctxonly", "task": 2, "done": true, "wall_s": 55.1, "tool_calls": 6, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "abl-gemma4-ctxonly", "task": 3, "done": true, "wall_s": 55.0, "tool_calls": 7, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "abl-gemma4-samponly", "task": 1, "done": false, "wall_s": 37.6, "tool_calls": 1, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "abl-gemma4-samponly", "task": 2, "done": false, "wall_s": 64.2, "tool_calls": 6, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "abl-gemma4-samponly", "task": 3, "done": false, "wall_s": 46.9, "tool_calls": 2, "loop": false, "timeout": false}

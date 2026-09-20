@@ -10,9 +10,6 @@
 {"harness": "opencode", "model": "sw-ornith-9b-q4-k-m", "task": 1, "done": true, "wall_s": 63.1, "tool_calls": 4, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-ornith-9b-q4-k-m", "task": 2, "done": true, "wall_s": 83.9, "tool_calls": 10, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-ornith-9b-q4-k-m", "task": 3, "done": true, "wall_s": 78.0, "tool_calls": 5, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 1, "done": false, "wall_s": 4.7, "tool_calls": 0, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 2, "done": false, "wall_s": 4.6, "tool_calls": 0, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 3, "done": false, "wall_s": 6.2, "tool_calls": 0, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-ornith-9b-q8-0", "task": 1, "done": true, "wall_s": 90.5, "tool_calls": 4, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-ornith-9b-q8-0", "task": 2, "done": true, "wall_s": 103.9, "tool_calls": 8, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-ornith-9b-q8-0", "task": 3, "done": true, "wall_s": 70.2, "tool_calls": 5, "loop": false, "timeout": false}
@@ -31,3 +28,6 @@
 {"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 1, "done": true, "wall_s": 35.2, "tool_calls": 2, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 2, "done": true, "wall_s": 41.8, "tool_calls": 8, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 3, "done": true, "wall_s": 36.9, "tool_calls": 2, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 1, "done": false, "wall_s": 180.1, "tool_calls": 2, "loop": false, "timeout": true}
+{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 2, "done": false, "wall_s": 180.1, "tool_calls": 2, "loop": false, "timeout": true}
+{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 3, "done": false, "wall_s": 110.0, "tool_calls": 1, "loop": false, "timeout": false}

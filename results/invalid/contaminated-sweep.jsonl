@@ -1,0 +1,2 @@
+{"base": "qwen3:8b-q8_0", "tag": "sw-qwen3-8b-q8-0", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 15.5, "loops": 0}
+{"base": "qwen3:8b-q8_0", "tag": "sw-qwen3-8b-q8-0", "tok_s": 13.5, "fit": "11 GB 25%/75% CPU/GPU", "passed": 0, "wall_s": 510.0, "loops": 0}
