@@ -54,8 +54,14 @@ def bench(name):
 
 def main(bases):
     os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
+    done = set()
+    p = os.path.join(HERE, "results", "sweep.jsonl")
+    if os.path.exists(p):
+        done = {json.loads(l)["base"] for l in open(p) if l.strip()}
     for base in bases:
         name = tuned_name(base)
+        if base in done:
+            print(f"skip {base}: already measured", flush=True); continue
         print(f"=== {base} -> {name} ===", flush=True)
         if subprocess.run(["ollama", "pull", base]).returncode != 0:
             print("pull failed, skipping", flush=True); continue
