@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Serialize GPU use: only one model-loading script at a time (shared lock).
+[ -z "${GPU_LOCKED:-}" ] && GPU_LOCKED=1 exec flock /tmp/local-llm-gpu.lock "$0" "$@"
 # Separate the effect of context length vs sampling on gemma4:12b (opencode smoke, 3 tasks each).
 # Also records the context the untuned model really loads with (ollama ps CONTEXT column).
 cd "$(dirname "$0")/.."

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Serialize GPU use: only one model-loading script at a time (shared lock).
+[ -z "${GPU_LOCKED:-}" ] && GPU_LOCKED=1 exec flock /tmp/local-llm-gpu.lock "$0" "$@"
 # Repeat the finalists N times (default 3) x 3 tasks to separate real differences from noise.
 # Appends {"rep": i, ...} JSON lines to results/repeats.jsonl. Skips model/rep pairs already recorded.
 cd "$(dirname "$0")/.."

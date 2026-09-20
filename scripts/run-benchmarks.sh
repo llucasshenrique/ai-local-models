@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Serialize GPU use: only one model-loading script at a time (shared lock).
+[ -z "${GPU_LOCKED:-}" ] && GPU_LOCKED=1 exec flock /tmp/local-llm-gpu.lock "$0" "$@"
 # Pull/create models, then run the opencode smoke matrix. Logs to results/opencode.jsonl (also on screen).
 set -u
 cd "$(dirname "$0")/.."; mkdir -p results
