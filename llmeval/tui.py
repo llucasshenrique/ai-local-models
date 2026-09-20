@@ -410,8 +410,9 @@ def job_workflow(path, cfg, family_name=None, target_ctx=None, confirm_reps=5, p
         w.log.append(f"== [1/5] AUTONOMOUS DISCOVERY: '{family_name}' ==")
         init_ctx = target_ctx or 32768
         plan = discovermod.discover(cfg, family_name, init_ctx, log=w.log.append)
-        if plan and plan.get("models"):
-            w.log.append(f"Discovered {len(plan['models'])} model variant(s). Applying to config...")
+        if plan and (plan.get("chosen") or plan.get("models")):
+            variants = plan.get("chosen") or plan.get("models", [])
+            w.log.append(f"Discovered {len(variants)} selected model variant(s). Applying to config...")
             discovermod.apply(path, plan, log=w.log.append)
             cfg.clear(); cfg.update(config.load(path))
             w.log.append("Config updated.")

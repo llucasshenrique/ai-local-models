@@ -43,6 +43,42 @@ class FeasibilityTests(unittest.TestCase):
             chosen, notes, adv = dc.choose(cfg, "g", c, {}, 16384, 2.6, 3, log=lambda *_: None)
         self.assertEqual([x["tag"] for x in chosen], ["a"]); self.assertIsNone(adv)          # id 99 does not exist -> heuristic
 
+class DiscoveryTop10Tests(unittest.TestCase):
+    def test_top_10_candidates_formatting(self):
+        cands = [
+            {"tag": "qwen2.5-coder:14b-q4_K_M", "size": "14b", "quant": "q4_K_M", "size_gb": 9.0, "est_total_gb": 11.6,
+             "tier": "likely", "popularity": "21.6M pulls", "age": "1 year ago", "source": "ollama"},
+            {"tag": "hf.co/org/qwen:Q4_K_M", "size": "7b", "quant": "Q4_K_M", "size_gb": 4.5, "est_total_gb": 7.1,
+             "tier": "likely", "popularity": "100K dl", "age": "2024-10-01", "source": "huggingface"},
+        ]
+        lines = dc.format_top_candidates(cands)
+        joined = "\n".join(lines)
+        self.assertIn("Top 10 Candidate Models for Selection", joined)
+        self.assertIn("qwen2.5-coder:14b-q4_K_M", joined)
+        self.assertIn("21.6M pulls", joined)
+        self.assertIn("1 year ago", joined)
+        self.assertIn("100K dl", joined)
+        self.assertIn("huggingface", joined)
+
+    def test_candidate_score_prefers_popular_and_fresh(self):
+        base = {"size": "7b", "quant": "q4_K_M", "tier": "likely", "source": "ollama"}
+        c_fresh_pop = {**base, "popularity_num": 5_000_000, "age_days": 30}
+        c_old_unpop = {**base, "popularity_num": 10, "age_days": 600}
+        self.assertGreater(dc.candidate_score(c_fresh_pop), dc.candidate_score(c_old_unpop))
+
+    def test_format_plan_includes_top_candidates(self):
+        plan = {
+            "name": "qwen", "candidates": 15, "feasible": 8, "ctx": 32768,
+            "machine": {"gpu": "RTX 4090", "vram_gb": 24.0, "ram_gb": 64.0},
+            "overhead_gb": 2.6, "advisor": "heuristic", "chosen": [{"tag": "qwen:7b", "size": "7b", "quant": "q4_K_M", "size_gb": 4.5, "tier": "likely", "source": "ollama", "why": "ok"}],
+            "notes": "", "download_gb": 4.5,
+            "top_candidates": [{"tag": "qwen:7b", "size": "7b", "quant": "q4_K_M", "size_gb": 4.5, "est_total_gb": 7.1, "tier": "likely", "popularity": "1M pulls", "age": "2 months ago", "source": "ollama"}]
+        }
+        lines = dc.format_plan(plan)
+        joined = "\n".join(lines)
+        self.assertIn("Top 10 Candidate Models for Selection", joined)
+        self.assertIn("1M pulls", joined)
+
 class PruneTests(unittest.TestCase):
     def test_drop_config_removes_only_the_named_model_blocks(self):
         with tempfile.TemporaryDirectory() as d:
