@@ -21,7 +21,7 @@ def cmd_selfcheck(a):
 def cmd_prepare(a): config.prepare(config.load(a.config), family=a.family, dry_run=a.dry_run)
 
 def cmd_run(a):
-    for ev in runner.run_matrix(config.load(a.config), force=a.force, keep=a.keep, family=a.family):
+    for ev in runner.run_matrix(config.load(a.config), force=a.force, keep=a.keep, family=a.family, variant=a.variant, task_ids=a.tasks.split(',') if a.tasks else None):
         t = ev["type"]
         if t == "plan": print(f"{ev['total']} trials to run ({ev['skipped']} already done)")
         elif t == "model": print(f"== {ev['model']}")
@@ -45,6 +45,11 @@ def cmd_advise(a):
     out = advisor.advise(config.load(a.config), a.model, a.think, a.dry_run)
     if a.dry_run: print(f"advisor would be: {out['advisor']} ({out['why']})\n\n{out['prompt']}"); return
     print(open(os.path.join(store.RESULTS, "advice.md")).read())
+
+def cmd_compare(a):
+    from . import report
+    out = report.compare(a.before, a.after, a.harness, a.model, a.tasks.split(",") if a.tasks else None)
+    print(json.dumps(out, indent=1)); sys.exit(0 if out["verdict"] in ("better", "same") else 1)
 
 def cmd_fit(a):
     cfg = config.load(a.config)
@@ -161,7 +166,7 @@ def main(argv=None):
     sub.add_parser("selfcheck", help="prove every task is solvable (no GPU)").set_defaults(f=cmd_selfcheck)
     sub.add_parser("prepare", help="pull base models and create tuned tags").set_defaults(f=cmd_prepare)
     sub.choices["prepare"].add_argument("--family"); sub.choices["prepare"].add_argument("--dry-run", action="store_true")
-    r = sub.add_parser("run"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
+    r = sub.add_parser("run"); r.add_argument("--variant", help="label stored with each trial so before/after runs of the same trials can be compared"); r.add_argument("--tasks", help="comma list of task ids (overrides the config)"); r.add_argument("--family", help="only the variants of one family"); r.add_argument("--force", action="store_true"); r.add_argument("--keep", action="store_true"); r.set_defaults(f=cmd_run)
     f = sub.add_parser("fit"); f.add_argument("--ctx", default="16384,32768,49152,65536"); f.set_defaults(f=cmd_fit)
     o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
     t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model", nargs="?"); t.add_argument("--family", help="tune a whole family: lead variant, then check the siblings"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.add_argument("--from-advice", action="store_true", help="search only the values the advisor proposed"); t.set_defaults(f=cmd_tune)
@@ -177,6 +182,8 @@ def main(argv=None):
     pr.add_argument("--keep-top", type=int, default=3); pr.add_argument("--margin", type=float, default=0.15); pr.add_argument("--min-n", type=int, default=6)
     pr.add_argument("--include-bases", action="store_true", help="also delete base models whose tuned tags are all deleted (this frees the disk)")
     pr.add_argument("--drop-config", action="store_true"); pr.add_argument("--verbose", action="store_true"); pr.add_argument("--yes", action="store_true"); pr.set_defaults(f=cmd_prune)
+    cp = sub.add_parser("compare", help="paired before/after comparison of two --variant labels (exit 1 if 'worse')")
+    cp.add_argument("before"); cp.add_argument("after"); cp.add_argument("--harness"); cp.add_argument("--model"); cp.add_argument("--tasks"); cp.set_defaults(f=cmd_compare)
     sub.add_parser("families", help="configured families, variant status and the current recommendation").set_defaults(f=cmd_families)
     af = sub.add_parser("add-family", help="add a model family: every size x quantization becomes a variant"); af.add_argument("name")
     af.add_argument("--sizes", required=True, help="comma list, e.g. 3b,8b"); af.add_argument("--quants", required=True, help="comma list, e.g. q4_K_M,q6_K,q8_0")

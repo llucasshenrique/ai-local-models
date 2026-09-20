@@ -10,7 +10,7 @@ def rows(path=RUNS):
     if not os.path.exists(path): return []
     return [json.loads(l) for l in open(path) if l.strip().startswith("{")]
 
-def key(r): return (r["harness"], r["model"], r["task"], r["rep"])
+def key(r): return (r["harness"], r["model"], r["task"], r["rep"], r.get("variant"))   # variant: label for before/after comparisons
 
 def done_keys(path=RUNS): return {key(r) for r in rows(path)}
 

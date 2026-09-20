@@ -43,13 +43,13 @@ def run_trial(harness, model, task, rep, timeout, proxy, num_ctx, keep=False):
                 tool_calls=st.get("tool_calls"), llm_requests=st.get("llm_requests"), peak_prompt_tokens=st.get("peak_prompt_tokens"),
                 num_ctx=num_ctx, ollama=ollama.version(), digest=ollama.digest(model))
 
-def run_matrix(cfg, force=False, keep=False, family=None):
+def run_matrix(cfg, force=False, keep=False, family=None, variant=None, task_ids=None):
     """Generator of progress events; results are appended to results/runs.jsonl. Resumable: finished trials are skipped."""
-    run = cfg["run"]; models = [m for m in cfg["models"] if not family or m.get("family") == family]; all_tasks = T.load(run.get("tasks") or None)
+    run = cfg["run"]; models = [m for m in cfg["models"] if not family or m.get("family") == family]; all_tasks = T.load(task_ids or run.get("tasks") or None)
     harnesses = [h for h in run["harnesses"] if h in REGISTRY]
     done = set() if force else store.done_keys()
     todo = [(m, h, t, r) for m in models for h in harnesses for t in all_tasks for r in range(1, run["reps"] + 1)
-            if (h, m["tag"], t["id"], r) not in done]
+            if (h, m["tag"], t["id"], r, variant) not in done]
     yield {"type": "plan", "total": len(todo), "skipped": len(models) * len(harnesses) * len(all_tasks) * run["reps"] - len(todo)}
     proxy = Proxy(run.get("proxy_port", 11436)) if any(REGISTRY[h].needs_proxy for h in harnesses) else None
     n = 0
@@ -65,7 +65,7 @@ def run_matrix(cfg, force=False, keep=False, family=None):
                     REGISTRY[h].prepare(tag, num_ctx)
                     yield {"type": "start", "harness": h, "model": tag, "task": t["id"], "rep": r, "n": n + 1}
                     meta = {k: m[k] for k in ("family", "size", "quant") if m.get(k)}
-                    rec = store.append({**run_trial(h, tag, t, r, run.get("timeout", 180), proxy, num_ctx, keep), **meta})
+                    rec = store.append({**run_trial(h, tag, t, r, run.get("timeout", 180), proxy, num_ctx, keep), **meta, **({"variant": variant} if variant else {})})
                     n += 1; yield {"type": "trial", **rec, "n": n}
                 ollama.stop(tag)
     finally:

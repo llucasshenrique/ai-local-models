@@ -6,9 +6,11 @@ from .fit import FIT
 def _md(head, rows):
     return "| " + " | ".join(head) + " |\n|" + "---|" * len(head) + "\n" + "\n".join("| " + " | ".join("-" if c is None else str(c) for c in r) + " |" for r in rows) + "\n"
 
+def label(r): return r["model"] + (f' [{r["variant"]}]' if r.get("variant") else "")
+
 def summary(rows=None):
     g = collections.defaultdict(list)
-    for r in (rows if rows is not None else store.rows()): g[(r["harness"], r["model"])].append(r)
+    for r in (rows if rows is not None else store.rows()): g[(r["harness"], label(r))].append(r)
     out = []
     for (h, m), v in g.items():
         ok = sum(r["done"] for r in v); tam = sum(bool(r.get("tampered")) for r in v)
@@ -20,7 +22,7 @@ def summary(rows=None):
 
 def per_task(rows=None):
     g = collections.defaultdict(lambda: collections.defaultdict(list))
-    for r in (rows if rows is not None else store.rows()): g[(r["harness"], r["model"])][r["task"]].append(int(r["done"]))
+    for r in (rows if rows is not None else store.rows()): g[(r["harness"], label(r))][r["task"]].append(int(r["done"]))
     return g
 
 def family_table(tol=0.05):
@@ -64,3 +66,17 @@ def render():
         out.append("## Context fit (latest measurement per model and num_ctx)\n")
         out.append(_md(["Model"] + [f"{c//1024}k" for c in ctxs], [(m, *[cell(latest.get((m, c))) for c in ctxs]) for m in models]))
     return "\n".join(out)
+
+
+def compare(a, b, harness=None, model=None, tasks=None, min_gain=1, max_slowdown=0.2):
+    """Paired before/after comparison of two variants on the SAME tasks. Verdict 'better' needs >= min_gain more passes and
+    no more than max_slowdown extra median wall time; 'worse' is the mirror image; anything else is 'same' (noise)."""
+    rows = [r for r in store.rows() if (not harness or r["harness"] == harness) and (not model or r["model"] == model)]
+    va = {(r["task"], r["rep"]): r for r in rows if r.get("variant") == a}
+    vb = {(r["task"], r["rep"]): r for r in rows if r.get("variant") == b}
+    common = [k for k in va if k in vb and (not tasks or k[0] in tasks)]
+    if not common: return {"verdict": "no overlap", "n": 0}
+    pa, pb = sum(va[k]["done"] for k in common), sum(vb[k]["done"] for k in common)
+    wa, wb = st.median(va[k]["wall_s"] for k in common), st.median(vb[k]["wall_s"] for k in common)
+    verdict = "better" if pb - pa >= min_gain and wb <= wa * (1 + max_slowdown) else "worse" if pa - pb >= min_gain else "same"
+    return {"verdict": verdict, "n": len(common), a: {"passed": pa, "median_wall": wa}, b: {"passed": pb, "median_wall": wb}}
