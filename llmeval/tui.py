@@ -1,12 +1,14 @@
-"""Terminal UI (stdlib curses). Tabs: 1 Results  2 Run  3 Context fit  4 Setup  5 Tune.
-Keys: 1-5 switch tab | up/down/PgUp/PgDn scroll | r start run (tab 2) | m measure fit (tab 3) | s selfcheck, p prepare (tab 4)
-      t tune the first model with a `base` (tab 5) | x stop after the current trial | q quit.
+"""Terminal UI (stdlib curses). Tabs: 1 Results  2 Run  3 Context fit  4 Models  5 Setup  6 Tune.
+Mouse: click tabs, buttons and model rows (click a selected row again to add it); wheel scrolls.
+Keys: 1-6 or left/right switch tab | up/down/PgUp/PgDn scroll | r start run (tab 2) | m measure fit (tab 3)
+      tab 4: up/down select, Enter add the selected installed model, n new model (tag / base / ctx), R refresh
+      tab 5: s selfcheck, p prepare | tab 6: t tune the first model with a `base` | x stop after the current trial | q quit.
 Long jobs run in one worker thread; the GPU lock keeps them serial and the UI never loads a model itself."""
 import collections, curses, threading, time
-from . import config, fit as fitmod, ollama, report, runner, store, tasks as T
+from . import config, fit as fitmod, models as modelmgmt, ollama, report, runner, store, tasks as T
 from .harnesses import REGISTRY
 
-TABS = ["Results", "Run", "Context fit", "Setup", "Tune"]
+TABS = ["Results", "Run", "Context fit", "Models", "Setup", "Tune"]
 
 # ---- content (pure functions returning lines; unit-testable without a terminal) ----
 def results_lines():
@@ -33,6 +35,12 @@ def fit_lines():
             cells.append("error" if not r or "error" in r or not r.get("fit") else f'{r["fit"]["size_gb"]}/{r["fit"]["gpu_pct"]}%/{r["tok_s"]}')
         out.append(f"{m[:26]:26} " + " ".join(c.rjust(19) for c in cells))
     return out
+
+def models_lines(rows, sel):
+    if rows is None: return ["ollama is not reachable, so installed models cannot be listed."]
+    out = ["Installed ollama models  ([x] = in the config, tested by `run`)", f'{"":3}{"":4}{"Model":38} {"GB":>5}', "-" * 60]
+    out += [f'{">" if i == sel else " "}  [{"x" if inc else " "}] {tag[:36]:36} {gb:>5}' for i, (tag, gb, inc) in enumerate(rows)]
+    return out + ["", "Enter: add selected   n: new model (pull or build from a base)   R: refresh"]
 
 def setup_lines(cfg):
     out = ["Harnesses", "-" * 60]
@@ -83,6 +91,12 @@ def job_setup(cfg, what):
         else: config.prepare(cfg, w.log.append)
     return fn
 
+def job_add(path, cfg, tags, base=None, ctx=None, pull=False):
+    def fn(w):
+        modelmgmt.add(path, tags, base, ctx, pull, w.log.append)
+        cfg.clear(); cfg.update(config.load(path))
+    return fn
+
 def job_tune(cfg):
     def fn(w):
         from . import tune
@@ -93,36 +107,118 @@ def job_tune(cfg):
     return fn
 
 # ---- curses loop ----
-def main(config_path):
-    cfg = config.load(config_path); w = Worker(); curses.wrapper(lambda scr: loop(scr, cfg, w))
+MODELS_HEADER = 3                      # lines above the first model row in models_lines()
+BUTTONS = {                            # tab index -> [(label, key it triggers)]
+    1: [("Run (r)", "r"), ("Stop (x)", "x")], 2: [("Measure fit (m)", "m")],
+    3: [("Add selected (Enter)", "\n"), ("New model (n)", "n"), ("Refresh (R)", "R")],
+    4: [("Selfcheck (s)", "s"), ("Prepare (p)", "p")], 5: [("Tune (t)", "t"), ("Stop (x)", "x")]}
 
-def loop(scr, cfg, w):
-    curses.curs_set(0); scr.timeout(400); tab, off = 0, 0
-    while True:
-        h, wd = scr.getmaxyx(); scr.erase()
-        bar = " ".join(f"[{i + 1}]{n}" if i == tab else f" {i + 1} {n}" for i, n in enumerate(TABS))
-        scr.addnstr(0, 0, f" llmeval  {bar}", wd - 1, curses.A_REVERSE)
-        if tab == 0: lines = results_lines()
-        elif tab == 2: lines = fit_lines()
-        elif tab == 3: lines = setup_lines(cfg) + ["", "s selfcheck   p prepare (pull + create tuned tags)"] + list(w.log)[-8:]
-        else:
-            done, total = w.progress
-            head = [("RUNNING: " + w.busy + (f"  {done}/{total}" if total else "")) if w.busy else ("idle - " + ("r start run, x stop" if tab == 1 else "t start tune")), ""]
-            lines = head + list(w.log)
-        off = max(0, min(off, max(0, len(lines) - (h - 2))))
-        for i, l in enumerate(lines[off:off + h - 2]): scr.addnstr(1 + i, 1, l, wd - 2)
-        scr.addnstr(h - 1, 0, f' q quit  1-5 tabs  arrows scroll  {"job: " + w.busy if w.busy else ""}', wd - 1, curses.A_DIM)
-        scr.refresh()
-        k = scr.getch()
-        if k in (ord("q"), 27): return
-        elif k in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5")): tab, off = k - ord("1"), 0
-        elif k == curses.KEY_DOWN: off += 1
-        elif k == curses.KEY_UP: off -= 1
-        elif k == curses.KEY_NPAGE: off += h - 3
-        elif k == curses.KEY_PPAGE: off -= h - 3
+def tab_spans():
+    """[(x0, x1)] of each tab label in the title bar; shared by drawing and click handling."""
+    spans, x = [], len(" llmeval  ")
+    for i, n in enumerate(TABS):
+        w = len(f" {i + 1} {n}"); spans.append((x, x + w)); x += w + 1
+    return spans
+
+def main(config_path):
+    cfg = config.load(config_path); w = Worker(); modelmgmt.bind(config_path); curses.wrapper(lambda scr: loop(scr, cfg, w, config_path))
+
+def prompt(scr, label, default=""):
+    """One-line text input on the bottom row; Esc cancels (returns None)."""
+    h, wd = scr.getmaxyx(); buf = default; scr.timeout(-1); curses.curs_set(1)
+    try:
+        while True:
+            scr.move(h - 1, 0); scr.clrtoeol(); scr.addnstr(h - 1, 0, f"{label}: {buf}", wd - 1, curses.A_BOLD); scr.refresh()
+            k = scr.getch()
+            if k in (10, 13, curses.KEY_ENTER): return buf.strip()
+            if k == 27: return None
+            if k in (curses.KEY_BACKSPACE, 127, 8): buf = buf[:-1]
+            elif 32 <= k < 127: buf += chr(k)
+    finally: scr.timeout(400); curses.curs_set(0)
+
+def loop(scr, cfg, w, path):
+    curses.curs_set(0); scr.timeout(400); scr.keypad(True)
+    curses.mouseinterval(0); curses.mousemask(curses.ALL_MOUSE_EVENTS)   # press/release reported separately; we act on presses
+    up, down = getattr(curses, "BUTTON4_PRESSED", 0), getattr(curses, "BUTTON5_PRESSED", 0)
+    st = {"tab": 0, "off": 0, "sel": 0, "rows": None, "rows_at": 0}; hit = []      # hit = clickable buttons of the last frame
+
+    def act(k):
+        """One handler for keyboard and mouse: clicks on buttons/tabs are translated into the same keys."""
+        tab, h = st["tab"], scr.getmaxyx()[0]; rows = st["rows"]
+        if k == ord("q"): return True            # Esc must not quit: a stray escape sequence would kill the UI
+        if k in (ord(c) for c in "123456"): st.update(tab=k - ord("1"), off=0, rows_at=0)
+        elif k == curses.KEY_DOWN and tab == 3 and rows: st["sel"] = min(st["sel"] + 1, len(rows) - 1)
+        elif k == curses.KEY_UP and tab == 3 and rows: st["sel"] = max(st["sel"] - 1, 0)
+        elif k == curses.KEY_DOWN: st["off"] += 1
+        elif k == curses.KEY_UP: st["off"] -= 1
+        elif k == curses.KEY_NPAGE: st["off"] += h - 3
+        elif k == curses.KEY_PPAGE: st["off"] -= h - 3
+        elif k == curses.KEY_HOME: st["off"] = 0
+        elif k == curses.KEY_LEFT: st.update(tab=(tab - 1) % len(TABS), off=0, rows_at=0)
+        elif k == curses.KEY_RIGHT: st.update(tab=(tab + 1) % len(TABS), off=0, rows_at=0)
         elif k == ord("x"): w.stop = True
         elif k == ord("r") and tab == 1: w.start("run", job_run(cfg))
         elif k == ord("m") and tab == 2: w.start("context fit", job_fit(cfg))
-        elif k == ord("s") and tab == 3: w.start("selfcheck", job_setup(cfg, "selfcheck"))
-        elif k == ord("p") and tab == 3: w.start("prepare", job_setup(cfg, "prepare"))
-        elif k == ord("t") and tab == 4: w.start("tune", job_tune(cfg))
+        elif k in (10, 13, curses.KEY_ENTER) and tab == 3 and rows:
+            w.start("add model", job_add(path, cfg, [rows[st["sel"]][0]])); st["rows_at"] = 0
+        elif k == ord("R") and tab == 3: st["rows_at"] = 0
+        elif k == ord("n") and tab == 3:
+            tag = prompt(scr, "new model tag (e.g. qwen3:8b or my-agent:9b)")
+            if tag:
+                base = prompt(scr, "base model to build it from (empty = pull/use the tag as-is)")
+                ctx = prompt(scr, "num_ctx (empty = default)") if base else None
+                if base is not None:
+                    w.start("add model", job_add(path, cfg, [tag], base or None, int(ctx) if ctx and ctx.isdigit() else None, pull=not base)); st["rows_at"] = 0
+        elif k == ord("s") and tab == 4: w.start("selfcheck", job_setup(cfg, "selfcheck"))
+        elif k == ord("p") and tab == 4: w.start("prepare", job_setup(cfg, "prepare"))
+        elif k == ord("t") and tab == 5: w.start("tune", job_tune(cfg))
+        return False
+
+    def click(x, y, bstate):
+        tab = st["tab"]
+        if bstate & up: return act(curses.KEY_UP)
+        if bstate & down: return act(curses.KEY_DOWN)
+        if not bstate & curses.BUTTON1_PRESSED: return False
+        if y == 0:
+            for i, (x0, x1) in enumerate(tab_spans()):
+                if x0 <= x < x1: return act(ord("1") + i)
+        for (by, x0, x1, key) in hit:
+            if by == y and x0 <= x < x1: return act(10 if key == "\n" else ord(key))
+        if tab == 3 and st["rows"]:
+            i = y - 1 + st["off"] - MODELS_HEADER
+            if 0 <= i < len(st["rows"]):
+                again = i == st["sel"]; st["sel"] = i
+                if again: return act(10)                        # clicking the already-selected row adds it
+        return False
+
+    while True:
+        h, wd = scr.getmaxyx(); scr.erase(); tab = st["tab"]
+        scr.addnstr(0, 0, " " * (wd - 1), wd - 1, curses.A_REVERSE); scr.addnstr(0, 1, "llmeval", 7, curses.A_REVERSE | curses.A_BOLD)
+        for i, (x0, x1) in enumerate(tab_spans()):
+            scr.addnstr(0, x0, (f"[{i + 1}]{TABS[i]}" if i == tab else f" {i + 1} {TABS[i]}").ljust(x1 - x0), max(0, min(x1 - x0, wd - x0 - 1)),
+                        curses.A_REVERSE | (curses.A_BOLD if i == tab else 0))
+        if tab == 3 and time.time() - st["rows_at"] > 5 and not w.busy:
+            try: st["rows"] = modelmgmt.installed_info()
+            except Exception: st["rows"] = None
+            st["rows_at"] = time.time(); st["sel"] = min(st["sel"], max(0, len(st["rows"] or []) - 1))
+        if tab == 0: lines = results_lines()
+        elif tab == 2: lines = fit_lines()
+        elif tab == 3: lines = models_lines(st["rows"], st["sel"]) + [""] + list(w.log)[-6:]
+        elif tab == 4: lines = setup_lines(cfg) + list(w.log)[-8:]
+        else:
+            done, total = w.progress
+            lines = [("RUNNING: " + w.busy + (f"  {done}/{total}" if total else "")) if w.busy else "idle", ""] + list(w.log)
+        st["off"] = max(0, min(st["off"], max(0, len(lines) - (h - 3))))
+        for i, l in enumerate(lines[st["off"]:st["off"] + h - 3]): scr.addnstr(1 + i, 1, l, wd - 2)
+        hit.clear(); x = 1
+        for label, key in BUTTONS.get(tab, []):        # clickable buttons on the row above the footer
+            txt = f" {label} "
+            if x + len(txt) < wd: scr.addnstr(h - 2, x, txt, len(txt), curses.A_REVERSE); hit.append((h - 2, x, x + len(txt), key)); x += len(txt) + 1
+        scr.addnstr(h - 1, 0, f' q quit  1-6/left/right tabs  up/down/PgUp/PgDn/wheel scroll  click tabs, buttons, rows  {"job: " + w.busy if w.busy else ""}', wd - 1, curses.A_DIM)
+        scr.refresh()
+        k = scr.getch()
+        if k == curses.KEY_MOUSE:
+            try: _, mx, my, _, bstate = curses.getmouse()
+            except curses.error: continue
+            if click(mx, my, bstate): return
+        elif k != -1 and act(k): return

@@ -72,6 +72,24 @@ def cmd_models(a):
 
 def cmd_add(a):
     """Append models to the config. Existing installed tags are used as-is; --base builds a tuned tag from a base model."""
+    from . import models
+    models.add(a.config, a.tags, a.base, a.ctx, a.pull)
+
+def cmd_demo_data(a):
+    from . import demo
+    demo.seed(); print("seeded sample results in", store.RESULTS)
+
+def cmd_models(a):
+    """Installed ollama models and whether each is already in the config."""
+    cfg = config.load(a.config); inlist = {m["tag"] if ":" in m["tag"] else m["tag"] + ":latest" for m in cfg["models"]}
+    inst = ollama.installed()
+    print(f"{'in config':10} {'model':36} ctx")
+    for tag in sorted(inst): print(f"{'yes' if tag in inlist else '-':10} {tag:36} {config._num_ctx(tag, 0) or ''}")
+    missing = sorted(inlist - set(inst))
+    if missing: print("\nin config but not installed (run `prepare`, or `ollama pull`):", ", ".join(missing))
+
+def cmd_add(a):
+    """Append models to the config. Existing installed tags are used as-is; --base builds a tuned tag from a base model."""
     cfg = config.load(a.config); have = {m["tag"] for m in cfg["models"]}; blocks = []
     for tag in a.tags:                       # validate everything first so a bad tag never leaves a half-written config
         if tag in have: print(f"skip {tag}: already in the config"); continue
