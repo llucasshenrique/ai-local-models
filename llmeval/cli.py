@@ -57,6 +57,10 @@ def cmd_import_legacy(a):
             store.append({**r, "legacy": True, "tampered": False}); have.add(store.key(r)); n += 1
     print("imported", n, "rows")
 
+def cmd_demo_data(a):
+    from . import demo
+    demo.seed(); print("seeded sample results in", store.RESULTS)
+
 def cmd_tui(a):
     from . import tui
     tui.main(a.config)
@@ -73,5 +77,6 @@ def main(argv=None):
     o = sub.add_parser("report"); o.add_argument("--out"); o.set_defaults(f=cmd_report)
     t = sub.add_parser("tune", help="bounded self-improvement search over Modelfile params"); t.add_argument("model"); t.add_argument("--harness", default="pi"); t.add_argument("--reps", type=int, default=2); t.set_defaults(f=cmd_tune)
     sub.add_parser("import-legacy").set_defaults(f=cmd_import_legacy)
+    sub.add_parser("demo-data", help="write synthetic results (use with LLMEVAL_RESULTS=/tmp/dir)").set_defaults(f=cmd_demo_data)
     sub.add_parser("tui").set_defaults(f=cmd_tui)
     a = p.parse_args(argv); a.f(a)

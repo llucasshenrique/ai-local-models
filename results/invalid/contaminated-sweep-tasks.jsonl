@@ -1,6 +1,0 @@
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 1, "done": false, "wall_s": 4.7, "tool_calls": 0, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 2, "done": false, "wall_s": 4.6, "tool_calls": 0, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 3, "done": false, "wall_s": 6.2, "tool_calls": 0, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 1, "done": false, "wall_s": 149.8, "tool_calls": 2, "loop": false, "timeout": false}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 2, "done": false, "wall_s": 180.1, "tool_calls": 2, "loop": false, "timeout": true}
-{"harness": "opencode", "model": "sw-qwen3-8b-q8-0", "task": 3, "done": false, "wall_s": 180.1, "tool_calls": 1, "loop": false, "timeout": true}

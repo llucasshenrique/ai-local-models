@@ -16,6 +16,18 @@ bin/llmeval tune MODEL    # bounded self-improvement search over Modelfile param
 bin/llmeval import-legacy # import the pre-llmeval results (marked legacy)
 ```
 
+## Trying it
+
+```
+make help        # all shortcuts
+make tui-demo    # TUI on synthetic data: no GPU, no ollama, your real results untouched
+make test        # unit tests + a scripted TUI session in a pseudo-terminal
+make tui         # TUI on your real results (tab 2: r = run, tab 3: m = fit, tab 4: s = selfcheck / p = prepare)
+```
+
+TUI keys: `1-5` tabs, arrows/PgUp/PgDn scroll, `x` stop after the current trial, `q` quit.
+`results/` is local data and git-ignored; set `LLMEVAL_RESULTS=/some/dir` to use another location.
+
 ## How it works
 
 - **Tasks are data** (`tasks/*.json`: prompt, starting files, test command, protected files, reference solution).
@@ -47,5 +59,5 @@ tooling is deliberately out of scope until the parameter loop proves trustworthy
 ## Layout
 
 `llmeval/` package | `tasks/` task definitions | `evals/` configs | `harness/minimal_agent.py` | `modelfiles/` hand-written and
-historical Modelfiles | `config/` snapshots of the opencode/Pi configs | `results/` data | `tests/` unit tests
+historical Modelfiles | `config/` snapshots of the opencode/Pi configs | `results/` local data (git-ignored) | `tests/` unit tests
 (`python3 -m unittest discover -s tests`) | `docs/` write-up.

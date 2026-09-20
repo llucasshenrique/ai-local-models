@@ -3,7 +3,7 @@ rows can be marked invalid later (moved aside, never silently edited)."""
 import json, os, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RESULTS = os.path.join(ROOT, "results")
+RESULTS = os.environ.get("LLMEVAL_RESULTS") or os.path.join(ROOT, "results")   # override for demos/tests
 RUNS = os.path.join(RESULTS, "runs.jsonl")
 
 def rows(path=RUNS):

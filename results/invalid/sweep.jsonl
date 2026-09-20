@@ -1,4 +1,0 @@
-{"base": "ornith:9b-q4_K_M", "tag": "sw-ornith-9b-q4-k-m", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 10.2, "loops": 0}
-{"base": "ornith:9b-q8_0", "tag": "sw-ornith-9b-q8-0", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 10.3, "loops": 0}
-{"base": "granite4.1:8b-q3_K_M", "tag": "sw-granite4-1-8b-q3-k-m", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 13.3, "loops": 0}
-{"base": "granite4.1:8b-q4_K_M", "tag": "sw-granite4-1-8b-q4-k-m", "tok_s": null, "fit": "bench failed: HTTP Error 404: Not Found", "passed": 0, "wall_s": 10.6, "loops": 0}

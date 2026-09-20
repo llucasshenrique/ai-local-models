@@ -1,1 +1,4 @@
 __pycache__/
+# results are local data, not part of the repository (keep the directory itself)
+results/*
+!results/.gitkeep

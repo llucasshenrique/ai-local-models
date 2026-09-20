@@ -1,7 +1,7 @@
 # Local LLM workers on an 11 GB GPU (ollama + Orca)
 
 Goal: run small, single-file, well-specified code micro-tasks (with a test command) on local models, as a
-native Orca agent, without loops. Hardware: RTX 2080 Ti 11 GB, 31 GB RAM, ollama 0.31.1. Raw data is in `results/`,
+native Orca agent, without loops. Hardware: RTX 2080 Ti 11 GB, 31 GB RAM, ollama 0.31.1. Raw data lives in `results/` on the author's machine (git-ignored, not in the repository; regenerate with `make run fit`),
 tooling in the `llmeval/` package (see README.md), `harness/`, `modelfiles/`; configs in `config/`.
 The measurements below were taken with the earlier ad-hoc scripts (`bench/`, `scripts/`, removed in favour of `llmeval`; see git
 history before commit 94da70c). Re-run or extend them with `bin/llmeval run|fit|report`; old rows import via `llmeval import-legacy`.

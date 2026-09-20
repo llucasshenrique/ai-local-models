@@ -1,1 +1,0 @@
-The bug was a simple logic error in `util.py`: `is_even` was checking `n % 2 == 1`, which actually checks for odd numbers. Changed it to `n % 2 == 0`. Test now passes.

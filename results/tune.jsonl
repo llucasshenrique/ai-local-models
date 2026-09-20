@@ -1,3 +1,0 @@
-{"ts": "2026-09-20T06:41:22", "phase": "baseline", "params": {"temperature": 0.25, "top_k": 20, "top_p": 0.9, "repeat_penalty": 1.05, "repeat_last_n": 256, "num_predict": 4096, "num_ctx": 32768}, "score": 992.9}
-{"ts": "2026-09-20T06:41:48", "phase": "candidate", "changed": {"temperature": 0.5}, "params": {"temperature": 0.5, "top_k": 20, "top_p": 0.9, "repeat_penalty": 1.05, "repeat_last_n": 256, "num_predict": 4096, "num_ctx": 32768}, "score": 994.5}
-{"ts": "2026-09-20T06:41:50", "phase": "holdout", "baseline": 992.9, "winner": 992.9, "confirmed": false, "params": {"temperature": 0.25, "top_k": 20, "top_p": 0.9, "repeat_penalty": 1.05, "repeat_last_n": 256, "num_predict": 4096, "num_ctx": 32768}}
