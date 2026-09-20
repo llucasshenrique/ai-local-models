@@ -1,0 +1,10 @@
+# Tuned gemma4:12b for agentic micro-tasks (tool use, low temperature, anti-loop).
+# Stop tokens are handled by the inherited gemma4 RENDERER/PARSER, so none are set here.
+FROM gemma4:12b
+PARAMETER temperature 0.2
+PARAMETER top_k 30
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.1
+PARAMETER repeat_last_n 256
+PARAMETER num_ctx 16384
+PARAMETER num_predict 4096
