@@ -1,4 +1,5 @@
 # Tuned qwen3:14b for agentic micro-tasks (tool use, low temperature, anti-loop).
+# NOTE: qwen3:14b (9.3 GB) does not fit 100% on the 11 GB GPU even at 8k ctx (~11-17 tok/s).
 FROM qwen3:14b
 PARAMETER temperature 0.25
 PARAMETER top_k 20
