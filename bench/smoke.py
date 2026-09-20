@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Loop smoke test: 3 tiny tasks run headless through a harness in throw-away git repos.
 
-usage: smoke.py opencode MODEL [task_id ...]   e.g. smoke.py opencode gemma4-agent:12b 1 2 3
-       smoke.py minimal MODEL [task_id ...]    (uses minimal_agent.py)
+usage: bench/smoke.py opencode MODEL [task_id ...]   e.g. smoke.py opencode gemma4-agent:12b 1 2 3
+       bench/smoke.py minimal MODEL [task_id ...]    (uses minimal_agent.py)
 Prints one JSON line per task: done (test passes), wall seconds, tool calls, loop flag.
 Loop = the same tool name + identical arguments issued 3 times (run is killed).
 """
@@ -31,7 +31,7 @@ def run(harness, model, task):
     if harness == "opencode":
         cmd = ["opencode", "run", "--format", "json", "--dir", d, "--agent", "micro", "-m", f"ollama/{model}", TASKS[task]["prompt"]]
     else:
-        cmd = ["python3", os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimal_agent.py"), model, TASKS[task]["prompt"]]
+        cmd = ["python3", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "harness", "minimal_agent.py"), model, TASKS[task]["prompt"]]
     t0 = time.time()
     p = subprocess.Popen(cmd, cwd=d, env={**os.environ, "PWD": d}, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     calls, seen, loop = 0, {}, False

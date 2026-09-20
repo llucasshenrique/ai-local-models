@@ -15,7 +15,7 @@ SWEEP = [
     "granite4.1:3b-q4_K_M", "granite4.1:3b-q8_0",
     "qwen3:8b-q8_0",
 ]
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root (results/ lives there)
 CFG = os.path.expanduser("~/.config/opencode/opencode.json")
 CTX, PRED = 16384, 4096
 HOST = "http://127.0.0.1:11434"
