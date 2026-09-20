@@ -19,6 +19,9 @@ class Proxy:
         class S(socketserver.ThreadingMixIn, http.server.HTTPServer):
             daemon_threads = True
             allow_reuse_address = True
+            def handle_error(self, request, client_address):
+                # Suppress client disconnect tracebacks (BrokenPipe, ConnectionReset) that pollute TUI terminal
+                pass
         self.server = S(("127.0.0.1", port), H)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
@@ -31,23 +34,35 @@ class Proxy:
         with self._lock: return {"llm_requests": self.requests, "peak_prompt_tokens": self.peak}
 
     def _fwd(self, h):
-        body = h.rfile.read(int(h.headers.get("Content-Length") or 0))
-        c = http.client.HTTPConnection(self.upstream, timeout=600)
-        c.request(h.command, h.path, body, {k: v for k, v in h.headers.items() if k.lower() not in ("host", "connection", "accept-encoding")})
-        r = c.getresponse()
-        if h.path.startswith(CHAT):
-            with self._lock: self.requests += 1
-        h.send_response(r.status)
-        for k, v in r.getheaders():
-            if k.lower() not in ("transfer-encoding", "connection", "content-length"): h.send_header(k, v)
-        h.send_header("Transfer-Encoding", "chunked"); h.end_headers()
-        while True:
-            chunk = r.read1(65536)
-            if not chunk: break
-            for m in PAT.findall(chunk):
-                with self._lock: self.peak = max(self.peak, int(m))
-            h.wfile.write(b"%x\r\n" % len(chunk) + chunk + b"\r\n"); h.wfile.flush()
-        h.wfile.write(b"0\r\n\r\n"); c.close()
+        try:
+            body = h.rfile.read(int(h.headers.get("Content-Length") or 0))
+            c = http.client.HTTPConnection(self.upstream, timeout=600)
+            c.request(h.command, h.path, body, {k: v for k, v in h.headers.items() if k.lower() not in ("host", "connection", "accept-encoding")})
+            r = c.getresponse()
+            if h.path.startswith(CHAT):
+                with self._lock: self.requests += 1
+            h.send_response(r.status)
+            for k, v in r.getheaders():
+                if k.lower() not in ("transfer-encoding", "connection", "content-length"): h.send_header(k, v)
+            h.send_header("Transfer-Encoding", "chunked"); h.end_headers()
+            while True:
+                chunk = r.read1(65536)
+                if not chunk: break
+                for m in PAT.findall(chunk):
+                    with self._lock: self.peak = max(self.peak, int(m))
+                try:
+                    h.wfile.write(b"%x\r\n" % len(chunk) + chunk + b"\r\n"); h.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+                    break
+            try:
+                h.wfile.write(b"0\r\n\r\n")
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+                pass
+            c.close()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+        except Exception:
+            pass
 
     def close(self):
         self.server.shutdown(); self.server.server_close()
