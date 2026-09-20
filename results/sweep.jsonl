@@ -7,3 +7,5 @@
 {"base": "granite4.1:8b-q3_K_M", "tag": "sw-granite4-1-8b-q3-k-m", "tok_s": 70.0, "fit": "7.1 GB 100% GPU", "passed": 1, "wall_s": 128.0, "loops": 0}
 {"base": "granite4.1:8b-q4_K_M", "tag": "sw-granite4-1-8b-q4-k-m", "tok_s": 71.4, "fit": "7.9 GB 100% GPU", "passed": 3, "wall_s": 141.4, "loops": 1}
 {"base": "granite4.1:8b-q6_K", "tag": "sw-granite4-1-8b-q6-k", "tok_s": 35.6, "fit": "10 GB 8%/92% CPU/GPU", "passed": 3, "wall_s": 182.9, "loops": 0}
+{"base": "granite4.1:3b-q4_K_M", "tag": "sw-granite4-1-3b-q4-k-m", "tok_s": 126.8, "fit": "3.6 GB 100% GPU", "passed": 2, "wall_s": 247.6, "loops": 0}
+{"base": "granite4.1:3b-q8_0", "tag": "sw-granite4-1-3b-q8-0", "tok_s": 60.4, "fit": "5.1 GB 100% GPU", "passed": 3, "wall_s": 113.9, "loops": 0}

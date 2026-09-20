@@ -25,3 +25,9 @@
 {"harness": "opencode", "model": "sw-granite4-1-8b-q6-k", "task": 1, "done": true, "wall_s": 62.1, "tool_calls": 2, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-granite4-1-8b-q6-k", "task": 2, "done": true, "wall_s": 53.1, "tool_calls": 5, "loop": false, "timeout": false}
 {"harness": "opencode", "model": "sw-granite4-1-8b-q6-k", "task": 3, "done": true, "wall_s": 67.7, "tool_calls": 2, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q4-k-m", "task": 1, "done": true, "wall_s": 31.4, "tool_calls": 2, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q4-k-m", "task": 2, "done": false, "wall_s": 166.9, "tool_calls": 7, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q4-k-m", "task": 3, "done": true, "wall_s": 49.3, "tool_calls": 3, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 1, "done": true, "wall_s": 35.2, "tool_calls": 2, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 2, "done": true, "wall_s": 41.8, "tool_calls": 8, "loop": false, "timeout": false}
+{"harness": "opencode", "model": "sw-granite4-1-3b-q8-0", "task": 3, "done": true, "wall_s": 36.9, "tool_calls": 2, "loop": false, "timeout": false}
